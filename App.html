@@ -1,0 +1,1440 @@
+<script>
+// ════════════════════════════ DATA (โหลดจาก Google Sheets) ════════════════════════════
+// ข้อมูลทั้งหมดจะถูกเติมโดย loadDataFromSheets() ตอนเปิดหน้า
+// แก้ไขข้อมูลลูกค้า เบอร์โทร อีเมล ได้ใน Sheet โดยตรง แล้ว Refresh หน้า
+let LOCATIONS=[];
+let DATA_LOADED=false;
+
+const CONTACT_TYPES={
+  satisfaction:{key:"satisfaction",label:"สอบถามความพึงพอใจ",labelEn:"Satisfaction Survey",icon:"😊",color:"var(--purple)",colorClass:"co-satisfaction",caseType:"Outbound Call",subType:"Satisfaction Survey",headerBg:"linear-gradient(135deg,#7c3aed,#a78bfa)",tagColor:"var(--purple)",headerBgLight:"var(--purple-bg)",
+    fields:[{key:"overallScore",label:"คะแนนความพึงพอใจ (1-5)",type:"rating"},{key:"serviceQuality",label:"คุณภาพบริการ",type:"select",options:["ดีมาก","ดี","ปานกลาง","ต้องปรับปรุง"]},{key:"machineCondition",label:"สภาพตู้/เครื่อง",type:"select",options:["ดีมาก","ดี","ปานกลาง","ต้องปรับปรุง"]},{key:"feedback",label:"ข้อเสนอแนะเพิ่มเติม",type:"textarea"},{key:"contactResult",label:"⭐ ผลการติดต่อ",type:"select",options:["ติดต่อได้ — พึงพอใจ","ติดต่อได้ — มีข้อเสนอแนะ","ติดต่อได้ — ไม่พึงพอใจ","ไม่รับสาย","หมายเลขไม่ถูกต้อง","สายไม่ว่าง","นัดโทรกลับ"]},{key:"followUp",label:"ต้องติดตามต่อ?",type:"select",options:["ไม่ต้อง","ภายใน 3 วัน","ภายใน 7 วัน","ภายใน 14 วัน"]}]},
+  billing:{key:"billing",label:"แจ้งยอดค่าใช้จ่าย (ทวงหนี้)",labelEn:"Billing / Debt Collection",icon:"💰",color:"var(--orange)",colorClass:"co-billing",caseType:"Debt Collection",subType:"Payment Notification",headerBg:"linear-gradient(135deg,#c2410c,#fb923c)",tagColor:"var(--orange)",headerBgLight:"var(--orange-bg)",
+    fields:[{key:"amountDue",label:"ยอดค้างชำระ (บาท)",type:"number"},{key:"dueDate",label:"กำหนดชำระ",type:"date"},{key:"paymentResponse",label:"การตอบรับ",type:"select",options:["รับทราบ จะชำระ","ขอผ่อนผัน","ปฏิเสธ","ไม่รับสาย","อื่นๆ"]},{key:"promisedDate",label:"สัญญาจะชำระภายใน",type:"date"},{key:"contactResult",label:"⭐ ผลการติดต่อ",type:"select",options:["ติดต่อได้ — รับทราบยอด","ติดต่อได้ — สัญญาจะชำระ","ติดต่อได้ — ขอผ่อนผัน","ติดต่อได้ — ปฏิเสธ","ไม่รับสาย","หมายเลขไม่ถูกต้อง","นัดโทรกลับ"]},{key:"escalation",label:"ระดับการติดตาม",type:"select",options:["ปกติ","เร่งด่วน","ส่งต่อหัวหน้าทีม","ส่งต่อฝ่ายกฎหมาย"]},{key:"notes",label:"บันทึกเพิ่มเติม",type:"textarea"}]},
+  other:{key:"other",label:"โทรติดต่อเรื่องอื่นๆ",labelEn:"Other Outbound Call",icon:"📞",color:"var(--accent)",colorClass:"co-other",caseType:"Outbound Call",subType:"General Call",headerBg:"linear-gradient(135deg,#0088a8,#00B4D8)",tagColor:"var(--accent)",headerBgLight:"var(--accent-bg)",
+    fields:[{key:"subject",label:"หัวข้อการติดต่อ",type:"text"},{key:"category",label:"หมวดหมู่",type:"select",options:["แจ้งข่าวสาร","ต่อสัญญา","เสนอโปรเจกต์ใหม่","ติดตามเรื่อง","อื่นๆ"]},{key:"contactResult",label:"⭐ ผลการติดต่อ",type:"select",options:["ติดต่อได้ — สำเร็จ","ติดต่อได้ — ต้องติดตามต่อ","ไม่รับสาย","หมายเลขไม่ถูกต้อง","นัดโทรกลับ","ปฏิเสธ"]},{key:"notes",label:"รายละเอียดการสนทนา",type:"textarea"},{key:"followUp",label:"ต้องติดตามต่อ?",type:"select",options:["ไม่ต้อง","ภายใน 3 วัน","ภายใน 7 วัน","ภายใน 14 วัน"]}]},
+  email:{key:"email",label:"ติดต่อทางอีเมล",labelEn:"Email Communication",icon:"📧",color:"#38bdf8",colorClass:"co-email",caseType:"Email Outbound",subType:"Email Contact",headerBg:"linear-gradient(135deg,#0284c7,#38bdf8)",tagColor:"#38bdf8",headerBgLight:"var(--sky-bg)",desc:"สำหรับลูกค้าต่างประเทศหรือไม่สะดวกรับโทรศัพท์",
+    fields:[{key:"emailSubject",label:"หัวข้ออีเมล",type:"text"},{key:"emailPurpose",label:"วัตถุประสงค์",type:"select",options:["แจ้งข้อมูลทั่วไป","แจ้งยอดชำระ","ส่งรายงาน","ติดตามเรื่อง","ต่อสัญญา","อื่นๆ"]},{key:"emailBody",label:"เนื้อหาอีเมล (สรุป)",type:"textarea"},{key:"language",label:"ภาษา",type:"select",options:["ไทย","English","ไทย + English"]},{key:"contactResult",label:"⭐ ผลการติดต่อ",type:"select",options:["ส่งอีเมลสำเร็จ","ลูกค้าตอบกลับแล้ว","ยังไม่ตอบกลับ","อีเมล Bounce","อีเมลไม่ถูกต้อง","รอตอบกลับ"]},{key:"responseDeadline",label:"กำหนดรอตอบกลับ",type:"select",options:["ไม่กำหนด","24 ชั่วโมง","3 วัน","7 วัน"]},{key:"notes",label:"บันทึกเพิ่มเติม",type:"textarea"}]},
+  multichannel:{key:"multichannel",label:"ติดต่อช่องทางอื่นๆ",labelEn:"Multi-Channel",icon:"🌐",color:"var(--yellow)",colorClass:"co-multichannel",caseType:"Multi-Channel",subType:"Alternative Channel",headerBg:"linear-gradient(135deg,#b45309,#fbbf24)",tagColor:"var(--yellow)",headerBgLight:"var(--yellow-bg)",desc:"Line, WhatsApp, Facebook, Video Call — ลูกค้าต่างประเทศ",
+    fields:[{key:"channel",label:"ช่องทาง",type:"select",options:["Line","WhatsApp","Facebook Messenger","WeChat","Zoom/Video Call","Telegram","อื่นๆ"]},{key:"subject",label:"หัวข้อ",type:"text"},{key:"customerLocation",label:"ลูกค้าอยู่ที่",type:"select",options:["ในประเทศ","ต่างประเทศ — เอเชีย","ต่างประเทศ — ยุโรป","ต่างประเทศ — อเมริกา","อื่นๆ"]},{key:"language",label:"ภาษา",type:"select",options:["ไทย","English","中文","日本語","อื่นๆ"]},{key:"contactResult",label:"⭐ ผลการติดต่อ",type:"select",options:["ติดต่อได้ — สำเร็จ","ส่งข้อความแล้ว — รอตอบ","ลูกค้าตอบกลับ","ติดต่อไม่ได้","บัญชีไม่ถูกต้อง","นัดหมาย Video Call"]},{key:"notes",label:"รายละเอียด",type:"textarea"},{key:"followUp",label:"ติดตามต่อ?",type:"select",options:["ไม่ต้อง","ภายใน 3 วัน","ภายใน 7 วัน","ภายใน 14 วัน"]}]}
+};
+
+// ═══════ COORDINATION CASES (โหลดจาก Sheet) ═══════
+let coordCases = [];
+// ═══════ HELPERS ═══════
+const fmt=n=>new Intl.NumberFormat('th-TH').format(n);
+const pct=(c,t)=>t>0?Math.round(c/t*100):0;
+const todayStr=()=>new Date().toISOString().split('T')[0];
+const nowTime=()=>{const d=new Date();return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+const nowFull=()=>`${todayStr()} ${nowTime()}`;
+let caseNum=200;const genCaseId=()=>`CS-2025-${String(++caseNum).padStart(6,'0')}`;
+let woNum=3;const genWOId=()=>`WO-2025-${String(++woNum).padStart(6,'0')}`;
+const badgeClass=s=>({Completed:'badge-green','In Progress':'badge-blue',Open:'badge-orange',Resolved:'badge-green',Closed:'badge-gray'}[s]||'badge-gray');
+const prioColor=p=>({Critical:'var(--red)',High:'var(--orange)',Medium:'var(--yellow)',Low:'var(--green)'}[p]||'var(--text3)');
+const commEmoji=t=>({Email:'📧','Phone Call':'📞',Line:'💬',SMS:'📱'}[t]||'💬');
+
+// ═══════ CONTACT FAILURE AUTO-EMAIL ═══════
+const UNREACHABLE_RESULTS=['ไม่รับสาย','หมายเลขไม่ถูกต้อง','สายไม่ว่าง','ติดต่อไม่ได้','บัญชีไม่ถูกต้อง','อีเมล Bounce','อีเมลไม่ถูกต้อง'];
+function isContactFailed(formData){
+  const r=formData.contactResult||'';
+  return UNREACHABLE_RESULTS.some(u=>r.includes(u));
+}
+function buildAutoFollowUpEmail(inv,caseId,cfg,formData,startTime){
+  const result=formData.contactResult||'ไม่สามารถติดต่อได้';
+  return{
+    subject:`[DEALPAY] แจ้งความพยายามติดต่อ — ${cfg.label} (Ref: ${caseId})`,
+    body:`เรียน คุณ${inv.name}\n\nทีม DEALPAY ได้พยายามติดต่อท่านในหัวข้อ "${cfg.label}" แต่ไม่สามารถติดต่อได้\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 เลขอ้างอิงเคส: ${caseId}\n📅 วันที่: ${todayStr()}  เวลา: ${startTime}\n📞 ช่องทาง: ${cfg.caseType}\n❌ ผลการติดต่อ: ${result}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nกรุณาติดต่อกลับที่:\n📞 โทร: 02-XXX-XXXX\n📧 อีเมล: support@dealpay.com\n💬 Line: @dealpay\n\nอ้างอิงเลขเคส ${caseId} ทุกครั้งที่ติดต่อ\n\nขอบคุณที่ไว้วางใจ\nทีม DEALPAY Customer Relations`
+  };
+}
+const progressColor=v=>v>=100?'var(--green)':v>=50?'var(--accent)':'var(--orange)';
+const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML};
+const coordStatusLabel=s=>({pending:'รอรับเคส',in_progress:'กำลังดำเนินการ',resolved:'เสร็จสิ้น',cancelled:'ยกเลิก'}[s]||s);
+const coordStatusBadge=s=>({pending:'badge-orange',in_progress:'badge-blue',resolved:'badge-green',cancelled:'badge-gray'}[s]||'badge-gray');
+const teamLabel=t=>({repair:'🔧 ทีมซ่อม',location:'🏢 ทีม Location',billing:'💳 ทีมบัญชี',other:'📋 อื่นๆ'}[t]||t);
+const teamClass=t=>({repair:'team-repair',location:'team-location',billing:'team-billing'}[t]||'team-other');
+
+// ═══════ EMAIL HELPERS ═══════
+function getLocInvestors(locId){
+  const loc=LOCATIONS.find(l=>l.id===locId);
+  return loc?loc.investors:[];
+}
+function getInvestorByEmail(locId,invId){
+  const invs=getLocInvestors(locId);
+  if(invId) return invs.filter(i=>i.customerId===invId);
+  return invs;
+}
+const emailTypeLabel=t=>({created:'🆕 แจ้งเปิดเคส',status_change:'🔄 เปลี่ยนสถานะ',resolved:'✅ แจ้งเสร็จสิ้น'}[t]||t);
+const emailTypeBadge=t=>({created:'badge-blue',status_change:'badge-yellow',resolved:'badge-green'}[t]||'badge-gray');
+function generateCoordEmails(coordCase,type,extra){
+  const recipients=coordCase.investorId?getInvestorByEmail(coordCase.locId,coordCase.investorId):getLocInvestors(coordCase.locId);
+  if(recipients.length===0)return[];
+  const fromStatus=extra?.fromStatus||'';
+  const toStatus=extra?.toStatus||coordCase.status;
+  const updateText=extra?.text||'';
+  const statusTransition=fromStatus?`${coordStatusLabel(fromStatus)} → ${coordStatusLabel(toStatus)}`:`สถานะ: ${coordStatusLabel(toStatus)}`;
+  const subjectMap={
+    created:`[DEALPAY] แจ้งเปิดเคสประสานงาน ${coordCase.id} — ${coordCase.locName}`,
+    status_change:`[DEALPAY] อัปเดตสถานะเคส ${coordCase.id}: ${statusTransition}`,
+    resolved:`[DEALPAY] เคส ${coordCase.id} ดำเนินการเสร็จสิ้น — ${coordCase.locName}`
+  };
+  const bodyMap={
+    created:`เรียน {{name}}\n\nระบบ DEALPAY ขอแจ้งให้ทราบว่ามีการเปิดเคสประสานงานใหม่ที่เกี่ยวข้องกับโลเคชั่นที่ท่านลงทุน\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 Work Order: ${coordCase.id}\n📍 โลเคชั่น: ${coordCase.locName}\n🔧 ส่งถึงทีม: ${teamLabel(coordCase.team)}\n⚠️ ความเร่งด่วน: ${coordCase.priority}\n📝 หัวข้อ: ${coordCase.title}\n📊 สถานะ: ${coordStatusLabel('pending')} (รอทีมรับเคส)\n\n📄 รายละเอียด:\n${coordCase.description}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nท่านจะได้รับอีเมลแจ้งเตือนอัตโนมัติทันทีเมื่อมีการเปลี่ยนแปลงสถานะ\n\nขอบคุณที่ไว้วางใจ\nทีม DEALPAY`,
+    status_change:`เรียน {{name}}\n\nเคสประสานงาน ${coordCase.id} มีการเปลี่ยนแปลงสถานะ\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 Work Order: ${coordCase.id}\n📍 โลเคชั่น: ${coordCase.locName}\n\n🔄 การเปลี่ยนแปลงสถานะ:\n   ${statusTransition}\n\n${updateText?`📝 รายละเอียด:\n${updateText}\n`:''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nระบบจะแจ้งให้ทราบอีกครั้งเมื่อมีความคืบหน้าเพิ่มเติม\n\nขอบคุณที่ไว้วางใจ\nทีม DEALPAY`,
+    resolved:`เรียน {{name}}\n\nเคสประสานงาน ${coordCase.id} ได้ดำเนินการเสร็จสิ้นแล้ว\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 Work Order: ${coordCase.id}\n📍 โลเคชั่น: ${coordCase.locName}\n✅ สถานะ: เสร็จสิ้น\n\n📄 สรุปการดำเนินงาน:\n${updateText||'ดำเนินการเรียบร้อยแล้ว'}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nหากมีข้อสงสัยเพิ่มเติม สามารถติดต่อทีมงานได้ตลอด\n\nขอบคุณที่ไว้วางใจ\nทีม DEALPAY`
+  };
+  const now=nowFull();
+  const emails=recipients.map(inv=>({date:now,to:inv.email,toName:inv.name,type,subject:subjectMap[type],body:bodyMap[type].replace('{{name}}',inv.name),statusTransition}));
+  return emails;
+}
+function applyCoordEmails(coordCase,type,extra){
+  if(!coordCase.emails)coordCase.emails=[];
+  const emails=generateCoordEmails(coordCase,type,extra);
+  if(emails.length===0)return emails;
+  coordCase.emails.push(...emails);
+  return emails;
+}
+
+// ═══════ SEARCH INDEX (rebuild after data load) ═══════
+let searchIndex=[];
+function rebuildSearchIndex(){
+  searchIndex=[];
+  LOCATIONS.forEach(loc=>{
+    loc.comms.forEach(c=>searchIndex.push({lid:loc.id,text:`${c.subject} ${c.from} ${c.type}`}));
+    loc.cases.forEach(c=>searchIndex.push({lid:loc.id,text:`${c.title} ${c.type} ${c.caseId} ${c.assignedTo||''}`}));
+    loc.investors.forEach(i=>searchIndex.push({lid:loc.id,text:`${i.name} ${i.nameEn} ${i.customerId} ${i.email} ${i.phone}`}));
+    loc.projects.forEach(p=>searchIndex.push({lid:loc.id,text:`${p.name} ${p.id} ${p.cabinetType}`}));
+    searchIndex.push({lid:loc.id,text:`${loc.name} ${loc.id} ${loc.address} ${loc.contactPerson}`});
+  });
+}
+function searchLocs(q){
+  let locs=getPageLocations();
+  if(!q.trim())return locs;
+  const terms=q.toLowerCase().split(/\s+/);
+  const ids=new Set();searchIndex.forEach(e=>{if(terms.every(t=>e.text.toLowerCase().includes(t)))ids.add(e.lid)});
+  return locs.filter(l=>ids.has(l.id));
+}
+
+// ═══════ STATE ═══════
+let state={page:'dealmaker',view:'list',query:'',selectedLoc:null,tab:'investors',recentCases:{},coordFilter:'all',coordLoc:null,coordCase:null,cabinetFilter:'all',ccView:'locations'};
+
+// ═══════ CABINET TYPES (auto-collected) ═══════
+let ALL_CABINET_TYPES=[];
+
+// ═══════ SATISFACTION DATA (โหลดจาก Sheet) ═══════
+let SATISFACTION_DATA=[];
+function getWeekNum(d){const s=new Date(d.getFullYear(),0,1);return Math.ceil(((d-s)/864e5+s.getDay()+1)/7)}
+// ═══════ PAGE HELPERS ═══════
+function locProgress(loc){const tv=loc.projects.reduce((s,p)=>s+p.totalValue,0);const tc=loc.projects.reduce((s,p)=>s+p.collected,0);return pct(tc,tv)}
+function getPageLocations(){
+  const base=state.page==='cc'?LOCATIONS.filter(l=>locProgress(l)>=100):state.page==='dealmaker'?LOCATIONS.filter(l=>locProgress(l)<100):LOCATIONS;
+  if(state.cabinetFilter&&state.cabinetFilter!=='all') return base.filter(l=>l.projects.some(p=>p.cabinetType===state.cabinetFilter));
+  return base;
+}
+const PAGE_META={
+  cc:{icon:'📞',label:'CC',full:'Customer Care',desc:'',color:'var(--accent)',gradient:'linear-gradient(135deg,#0088a8,#00B4D8)'},
+  dealmaker:{icon:'🤝',label:'DM',full:'Sales & Deal Closer',desc:'',color:'var(--orange)',gradient:'linear-gradient(135deg,#c2410c,#fb923c)'},
+  rc:{icon:'🔧',label:'RC',full:'Repair & Coordination',desc:'',color:'var(--yellow)',gradient:'linear-gradient(135deg,#b45309,#fbbf24)'}
+};
+
+const app=document.getElementById('app');
+
+// ═══════ RENDER ENGINE ═══════
+function render(){
+  if(false){renderMgmtDashboard()}
+  else if(state.page==='rc'){
+    if(state.coordCase) renderCoordCaseDetail();
+    else if(state.coordLoc) renderCoordDetail();
+    else renderCoordLocationList();
+  }
+  else if(state.page==='cc'&&state.ccView==='satisfaction') renderSatisfactionDash();
+  else if(state.view==='list') renderList();
+  else renderDetail();
+  bindGlobalNav();
+}
+
+function renderGlobalNav(){
+  const ccCount=LOCATIONS.filter(l=>locProgress(l)>=100).length;
+  const dmCount=LOCATIONS.filter(l=>locProgress(l)<100).length;
+  const openCoord=coordCases.filter(c=>c.status!=='resolved'&&c.status!=='cancelled').length;
+  return `<div class="nav-tabs fade-up" style="animation-delay:0.02s">
+    <button class="nav-tab ${state.page==='dealmaker'?'active':''}" data-page="dealmaker" ${state.page==='dealmaker'?`style="--nav-active:var(--orange)"`:''}><span>🤝</span> Sales & Deal Closer ${dmCount?`<span class="cnt">${dmCount}</span>`:''}</button>
+    <button class="nav-tab ${state.page==='cc'?'active':''}" data-page="cc"><span>📞</span> Customer Care ${ccCount?`<span class="cnt">${ccCount}</span>`:''}</button>
+    <button class="nav-tab ${state.page==='rc'?'active':''}" data-page="rc" ${state.page==='rc'?`style="--nav-active:var(--yellow)"`:''}><span>🔧</span> RC — Repair & Coordination ${openCoord?`<span class="cnt">${openCoord}</span>`:''}</button>
+  </div>`;
+}
+
+function bindGlobalNav(){
+  document.querySelectorAll('.nav-tab[data-page]').forEach(btn=>{
+    btn.addEventListener('click',()=>{state.page=btn.dataset.page;state.view='list';state.selectedLoc=null;if(btn.dataset.page==='rc'){state.coordLoc=null;state.coordCase=null;state.coordFilter='all'}render()});
+  });
+}
+
+// ═══════ MANAGEMENT DASHBOARD ═══════
+function renderMgmtDashboard(){
+  const dmLocs=LOCATIONS.filter(l=>locProgress(l)<100);
+  const dmInv=dmLocs.reduce((s,l)=>s+l.investors.length,0);
+  const dmVal=dmLocs.reduce((s,l)=>s+l.projects.reduce((a,p)=>a+p.totalValue,0),0);
+  const dmCol=dmLocs.reduce((s,l)=>s+l.projects.reduce((a,p)=>a+p.collected,0),0);
+  const dmAvg=dmLocs.length?Math.round(dmLocs.reduce((s,l)=>s+locProgress(l),0)/dmLocs.length):0;
+
+  const ccLocs=LOCATIONS.filter(l=>locProgress(l)>=100);
+  const ccInv=ccLocs.reduce((s,l)=>s+l.investors.length,0);
+  const ccCol=ccLocs.reduce((s,l)=>s+l.projects.reduce((a,p)=>a+p.collected,0),0);
+  const ccOpen=ccLocs.reduce((s,l)=>s+l.cases.filter(c=>c.status!=='Resolved'&&c.status!=='Closed').length,0);
+  const ccDebt=ccLocs.reduce((s,l)=>s+l.investors.reduce((a,i)=>a+(i.debt||0),0),0);
+
+  const rcOpen=coordCases.filter(c=>c.status!=='resolved'&&c.status!=='cancelled').length;
+  const rcPending=coordCases.filter(c=>c.status==='pending').length;
+  const rcProg=coordCases.filter(c=>c.status==='in_progress').length;
+  const rcResolved=coordCases.filter(c=>c.status==='resolved').length;
+  const rcCritical=coordCases.filter(c=>c.priority==='Critical'&&c.status!=='resolved'&&c.status!=='cancelled').length;
+
+  if(!state.mgmtOpen) state.mgmtOpen={};
+
+  function teamCard(key,goto,gradient,icon,name,desc,badgeText,bodyHtml,footerLabel,delay){
+    const open=!!state.mgmtOpen[key];
+    return`<div class="mgmt-team fade-up ${open?'open':''}" style="animation-delay:${delay}s" data-key="${key}" data-goto="${goto}">
+      <div class="mt-header" style="background:${gradient}" data-toggle="${key}">
+        <div class="mt-icon">${icon}</div>
+        <div><div class="mt-name">${name}</div><div class="mt-desc">${desc}</div></div>
+        <div class="mt-badge">${badgeText}</div>
+        <svg class="mt-chevron" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="mt-collapse">${bodyHtml}
+        <div class="mt-footer" data-nav="${goto}"><span>เข้าสู่หน้า ${footerLabel} →</span></div>
+      </div>
+    </div>`;
+  }
+
+  const dmBody=`<div class="mt-body">
+    <div class="mt-stats">
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--orange)">${dmLocs.length}</div><div class="mt-sl">โลเคชั่นรอปิด</div></div>
+      <div class="mt-stat"><div class="mt-sv">${dmInv}</div><div class="mt-sl">นักลงทุน</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--accent)">฿${fmt(dmVal)}</div><div class="mt-sl">มูลค่ารวม</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--yellow)">฿${fmt(dmVal-dmCol)}</div><div class="mt-sl">ยอดค้าง</div></div>
+    </div>
+    <div class="mt-progress"><div class="mpb-track"><div class="mpb-fill" style="width:${dmAvg}%;background:var(--orange)"></div></div><span class="mpb-label">เฉลี่ย ${dmAvg}%</span></div>
+    <div class="mt-locations">${dmLocs.map(l=>{const p=locProgress(l);return`<div class="mt-loc"><span class="mt-loc-name">${esc(l.name)}</span><div class="mt-loc-bar"><div class="mpb-track" style="height:4px"><div class="mpb-fill" style="width:${p}%;background:${progressColor(p)}"></div></div></div><span class="mt-loc-pct" style="color:${progressColor(p)}">${p}%</span></div>`}).join('')}</div>
+  </div>`;
+
+  const ccBody=`<div class="mt-body">
+    <div class="mt-stats">
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--green)">${ccLocs.length}</div><div class="mt-sl">โลเคชั่น (100%)</div></div>
+      <div class="mt-stat"><div class="mt-sv">${ccInv}</div><div class="mt-sl">นักลงทุน</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--green)">฿${fmt(ccCol)}</div><div class="mt-sl">ยอดเก็บแล้ว</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:${ccDebt>0?'var(--red)':'var(--green)'}">${ccDebt>0?'฿'+fmt(ccDebt):'—'}</div><div class="mt-sl">หนี้ค้างชำระ</div></div>
+    </div>
+    ${ccOpen?`<div class="mt-extra"><span style="color:var(--orange)">🔔 เคสเปิด: <b>${ccOpen}</b></span></div>`:''}
+  </div>`;
+
+  const rcBody=`<div class="mt-body">
+    <div class="mt-stats">
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--orange)">${rcOpen}</div><div class="mt-sl">เคสเปิด</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--yellow)">${rcPending}</div><div class="mt-sl">รอรับเคส</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--accent)">${rcProg}</div><div class="mt-sl">กำลังดำเนินการ</div></div>
+      <div class="mt-stat"><div class="mt-sv" style="color:var(--green)">${rcResolved}</div><div class="mt-sl">เสร็จสิ้น</div></div>
+    </div>
+    ${rcCritical?`<div class="mt-extra"><span style="color:var(--red)">🚨 Critical: <b>${rcCritical}</b> เคส</span></div>`:''}
+  </div>`;
+
+  app.innerHTML=`
+    <div class="topbar fade-up"><div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div></div>
+    ${renderGlobalNav()}
+    <div class="mgmt-teams">
+      ${teamCard('dm','dealmaker','linear-gradient(135deg,#c2410c,#fb923c)','🤝','Deal Maker','ทีมปิดการขาย',dmLocs.length+' โลเคชั่น',dmBody,'Deal Maker',.06)}
+      ${teamCard('cc','cc','linear-gradient(135deg,#0088a8,#00B4D8)','📞','CC — Customer Care','ทีมดูแลลูกค้า',ccLocs.length+' โลเคชั่น',ccBody,'CC',.1)}
+      ${teamCard('rc','rc','linear-gradient(135deg,#b45309,#fbbf24)','🔧','RC — Repair & Coord','ทีมซ่อมและประสานงาน',rcOpen+' เคสเปิด',rcBody,'RC',.14)}
+    </div>
+  `;
+
+  document.querySelectorAll('.mt-header[data-toggle]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      const key=el.dataset.toggle;
+      state.mgmtOpen[key]=!state.mgmtOpen[key];
+      const card=el.closest('.mgmt-team');
+      card.classList.toggle('open',state.mgmtOpen[key]);
+    });
+  });
+  document.querySelectorAll('.mt-footer[data-nav]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      const goto=el.dataset.nav;
+      state.page=goto;state.view='list';state.selectedLoc=null;
+      if(goto==='rc'){state.coordLoc=null;state.coordFilter='all'}
+      render();
+    });
+  });
+}
+
+// ═══════ CC SATISFACTION DASHBOARD ═══════
+function renderSatisfactionDash(){
+  const pm=PAGE_META.cc;
+  if(!state.satFilter) state.satFilter={month:'',week:'',loc:'all',scoreLevel:'all'};
+  const sf=state.satFilter;
+  const now=new Date();const curMonth=now.toISOString().slice(0,7);
+  const activeMonth=sf.month||curMonth;
+
+  let data=SATISFACTION_DATA.filter(d=>d.date.startsWith(activeMonth));
+  if(sf.loc!=='all') data=data.filter(d=>d.location===sf.loc);
+  if(sf.scoreLevel==='high') data=data.filter(d=>d.score>=4);
+  else if(sf.scoreLevel==='mid') data=data.filter(d=>d.score===3);
+  else if(sf.scoreLevel==='low') data=data.filter(d=>d.score&&d.score<=2);
+  else if(sf.scoreLevel==='nocontact') data=data.filter(d=>!d.contacted);
+
+  const contacted=data.filter(d=>d.contacted);
+  const scored=contacted.filter(d=>d.score);
+  const avgScore=scored.length?scored.reduce((s,d)=>s+d.score,0)/scored.length:0;
+  const satisfied=scored.filter(d=>d.score>=4).length;
+  const needsFix=scored.filter(d=>d.score<=2).length;
+  const noContact=data.filter(d=>!d.contacted).length;
+
+  const dist=[0,0,0,0,0];
+  scored.forEach(d=>{if(d.score>=1&&d.score<=5)dist[d.score-1]++});
+  const maxDist=Math.max(...dist,1);
+
+  const dailyMap={};
+  contacted.forEach(d=>{if(!dailyMap[d.date])dailyMap[d.date]={sum:0,cnt:0};dailyMap[d.date].sum+=d.score||0;dailyMap[d.date].cnt++});
+  const dailyKeys=Object.keys(dailyMap).sort().slice(-7);
+  const dailyAvgs=dailyKeys.map(k=>({date:k.slice(5),avg:dailyMap[k].cnt?+(dailyMap[k].sum/dailyMap[k].cnt).toFixed(2):0,cnt:dailyMap[k].cnt}));
+  const maxAvg=Math.max(...dailyAvgs.map(d=>d.avg),5);
+
+  const allLocs=[...new Set(SATISFACTION_DATA.map(d=>d.location))].sort();
+  const months=[...new Set(SATISFACTION_DATA.map(d=>d.date.slice(0,7)))].sort().reverse();
+
+  app.innerHTML=`
+    <div class="topbar fade-up"><div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div></div>
+    ${renderGlobalNav()}
+    <div class="cc-sub-tabs fade-up" style="animation-delay:.03s">
+      <button class="cc-sub-tab" data-ccv="locations">📋 โลเคชั่น</button>
+      <button class="cc-sub-tab active" data-ccv="satisfaction">📊 Dashboard ความพึงพอใจ</button>
+    </div>
+
+    <div class="sat-header fade-up" style="animation-delay:.04s">
+      <div class="sat-title">📊 รายงานสรุปผลการให้บริการ</div>
+      <div class="sat-date">อัพเดท: ${todayStr()}</div>
+    </div>
+
+    <div class="sat-filters fade-up" style="animation-delay:.06s">
+      <div class="sat-f-group"><label>เลือกเดือน</label><select class="sat-f-input" id="sfMonth">${months.map(m=>`<option value="${m}" ${activeMonth===m?'selected':''}>${m}</option>`).join('')}</select></div>
+      <div class="sat-f-group"><label>โลเคชั่น</label><select class="sat-f-input" id="sfLoc"><option value="all" ${sf.loc==='all'?'selected':''}>ทั้งหมด</option>${allLocs.map(l=>`<option value="${esc(l)}" ${sf.loc===l?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="sat-f-group"><label>ระดับคะแนน</label><select class="sat-f-input" id="sfScore"><option value="all" ${sf.scoreLevel==='all'?'selected':''}>ทุกคะแนน</option><option value="high" ${sf.scoreLevel==='high'?'selected':''}>พึงพอใจ (4-5)</option><option value="mid" ${sf.scoreLevel==='mid'?'selected':''}>ปานกลาง (3)</option><option value="low" ${sf.scoreLevel==='low'?'selected':''}>ต้องแก้ไข (1-2)</option><option value="nocontact" ${sf.scoreLevel==='nocontact'?'selected':''}>ติดต่อไม่ได้</option></select></div>
+      <button class="sat-f-reset" id="sfReset">↻ รีเซ็ต</button>
+    </div>
+
+    <div class="sat-kpis fade-up" style="animation-delay:.08s">
+      <div class="sat-kpi"><div class="sat-kpi-side" style="background:var(--accent)"></div><div class="sat-kpi-body"><div class="sat-kpi-label">คะแนนเฉลี่ย</div><div class="sat-kpi-row"><div class="sat-kpi-val" style="color:var(--accent)">${avgScore.toFixed(2)}</div><span style="font-size:1.5rem">⭐</span></div><div class="sat-kpi-sub">จาก ${scored.length} ราย</div></div></div>
+      <div class="sat-kpi"><div class="sat-kpi-side" style="background:var(--green)"></div><div class="sat-kpi-body"><div class="sat-kpi-label">พึงพอใจ (4-5)</div><div class="sat-kpi-row"><div class="sat-kpi-val" style="color:var(--green)">${satisfied}</div><span style="font-size:1.5rem">😊</span></div><div class="sat-kpi-sub">${scored.length?Math.round(satisfied/scored.length*100):0}% ของผู้ตอบ</div></div></div>
+      <div class="sat-kpi"><div class="sat-kpi-side" style="background:var(--red)"></div><div class="sat-kpi-body"><div class="sat-kpi-label">ต้องแก้ไข (1-2)</div><div class="sat-kpi-row"><div class="sat-kpi-val" style="color:var(--red)">${needsFix}</div><span style="font-size:1.5rem">⚠️</span></div><div class="sat-kpi-sub">เคสวิกฤต</div></div></div>
+      <div class="sat-kpi"><div class="sat-kpi-side" style="background:var(--purple)"></div><div class="sat-kpi-body"><div class="sat-kpi-label">ยอดรวม</div><div class="sat-kpi-row"><div class="sat-kpi-val" style="color:var(--purple)">${data.length}</div><span style="font-size:1.5rem">📞</span></div><div class="sat-kpi-sub">โทรออก${noContact?` · <span style="color:var(--red)">${noContact} ติดต่อไม่ได้</span>`:''}</div></div></div>
+    </div>
+
+    <div class="sat-charts fade-up" style="animation-delay:.1s">
+      <div class="sat-chart-card">
+        <div class="sat-chart-title">📈 แนวโน้มรายวัน (${activeMonth})</div>
+        <div class="sat-bar-chart">
+          ${dailyAvgs.length?dailyAvgs.map(d=>`<div class="sat-bar-col"><div class="sat-bar-val">${d.avg}</div><div class="sat-bar-wrap"><div class="sat-bar" style="height:${d.avg/maxAvg*100}%;background:${d.avg>=4?'var(--green)':d.avg>=3?'var(--accent)':'var(--red)'}"></div></div><div class="sat-bar-lbl">${d.date}</div><div class="sat-bar-cnt">${d.cnt} ราย</div></div>`).join(''):`<div style="text-align:center;color:var(--text3);padding:40px;width:100%">ไม่มีข้อมูล</div>`}
+        </div>
+      </div>
+      <div class="sat-chart-card">
+        <div class="sat-chart-title">📊 สัดส่วนคะแนน</div>
+        <div class="sat-dist">
+          ${[5,4,3,2,1].map(n=>{const cnt=dist[n-1];const pctW=maxDist?cnt/maxDist*100:0;const color=n>=4?'var(--green)':n===3?'var(--accent)':'var(--red)';return`<div class="sat-dist-row"><div class="sat-dist-label">${n} ⭐</div><div class="sat-dist-bar-wrap"><div class="sat-dist-bar" style="width:${pctW}%;background:${color}"></div></div><div class="sat-dist-cnt">${cnt} <span style="color:var(--text3)">(${scored.length?Math.round(cnt/scored.length*100):0}%)</span></div></div>`}).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="sat-table-wrap fade-up" style="animation-delay:.12s">
+      <div class="sat-chart-title">📋 รายละเอียดผลสำรวจ <span style="color:var(--text3);font-weight:400;font-size:.8rem">(${data.length} รายการ)</span></div>
+      <div class="sat-table-scroll">
+        <table class="sat-table">
+          <thead><tr><th>วันที่</th><th>นักลงทุน</th><th>โลเคชั่น</th><th>คะแนน</th><th>คุณภาพบริการ</th><th>ผลการติดต่อ</th><th>เจ้าหน้าที่</th></tr></thead>
+          <tbody>${data.slice(0,20).map(d=>{const sc=d.score;const scColor=!sc?'var(--text3)':sc>=4?'var(--green)':sc===3?'var(--accent)':'var(--red)';return`<tr><td>${d.date.slice(5)}</td><td class="td-name">${esc(d.investor)}</td><td>${esc(d.location)}</td><td><span style="font-weight:800;color:${scColor};font-size:1rem">${sc||'—'}</span>${sc?'/5':''}</td><td>${d.serviceQuality||'—'}</td><td><span style="font-size:.75rem;padding:2px 8px;border-radius:10px;background:${d.contacted?'rgba(34,197,94,.1)':'rgba(239,68,68,.1)'};color:${d.contacted?'var(--green)':'var(--red)'}">${esc(d.contactResult)}</span></td><td>${esc(d.agent)}</td></tr>`}).join('')}</tbody>
+        </table>
+        ${data.length>20?`<div style="text-align:center;padding:12px;color:var(--text3);font-size:.8rem">แสดง 20 จาก ${data.length} รายการ</div>`:''}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('sfMonth')?.addEventListener('change',e=>{state.satFilter.month=e.target.value;render()});
+  document.getElementById('sfLoc')?.addEventListener('change',e=>{state.satFilter.loc=e.target.value;render()});
+  document.getElementById('sfScore')?.addEventListener('change',e=>{state.satFilter.scoreLevel=e.target.value;render()});
+  document.getElementById('sfReset')?.addEventListener('click',()=>{state.satFilter={month:'',week:'',loc:'all',scoreLevel:'all'};render()});
+  document.querySelectorAll('.cc-sub-tab').forEach(el=>{el.addEventListener('click',()=>{state.ccView=el.dataset.ccv;render()})});
+}
+
+function renderList(){
+  const pm=PAGE_META[state.page];
+  const results=searchLocs(state.query);
+  const pageLocs=getPageLocations();
+
+  app.innerHTML=`
+    <div class="topbar fade-up">
+      <div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div>
+    </div>
+    ${renderGlobalNav()}
+    ${state.page==='cc'?`<div class="cc-sub-tabs fade-up" style="animation-delay:.03s">
+      <button class="cc-sub-tab active" data-ccv="locations">📋 โลเคชั่น</button>
+      <button class="cc-sub-tab" data-ccv="satisfaction">📊 Dashboard ความพึงพอใจ</button>
+    </div>`:''}
+    <div class="search-wrap fade-up" style="animation-delay:.05s">
+      <div class="search-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="si" type="text" placeholder="ค้นหาโลเคชั่น, ชื่อผู้ลงทุน, เคส..." value="${esc(state.query)}">${state.query?'<button class="search-clear" id="clr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>':''}</div>
+      <div class="cabinet-filter-row">
+        <span class="cabinet-filter-label">📦 ประเภทตู้:</span>
+        <select class="cabinet-dropdown" id="cabFilter">
+          <option value="all" ${state.cabinetFilter==='all'?'selected':''}>ทั้งหมด (${pageLocs.length})</option>
+          ${ALL_CABINET_TYPES.map(ct=>{const cnt=pageLocs.filter(l=>l.projects.some(p=>p.cabinetType===ct)).length;return cnt>0?`<option value="${esc(ct)}" ${state.cabinetFilter===ct?'selected':''}>${esc(ct)} (${cnt})</option>`:''}).join('')}
+        </select>
+      </div>
+      ${state.query||state.cabinetFilter!=='all'?`<div class="search-meta">พบ <b>${results.length}</b> โลเคชั่น${state.query?' สำหรับ "<span class="q">'+esc(state.query)+'</span>"':''}${state.cabinetFilter!=='all'?' · ตู้ <span class="q">'+esc(state.cabinetFilter)+'</span>':''}</div>`:''}
+    </div>
+    <div class="loc-grid">${results.length===0?`<div class="empty fade-up"><div class="icon">🔍</div><h3>ไม่พบข้อมูล</h3><p>${state.page==='cc'?'ยังไม่มีโลเคชั่นที่ลงทุนครบ 100%':state.page==='dealmaker'?'ไม่มีโลเคชั่นรอปิดการขาย':'ลองค้นหาด้วยคำอื่น'}</p></div>`:results.map((loc,i)=>{const tv=loc.projects.reduce((s,p)=>s+p.totalValue,0);const tc=loc.projects.reduce((s,p)=>s+p.collected,0);const prog=pct(tc,tv);return`<div class="loc-card fade-up" style="animation-delay:${.05+i*.04}s" data-loc="${loc.id}"><div class="loc-card-head"><div><div class="loc-tag"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${state.page==='cc'?'CC — READY':'DEAL IN PROGRESS'}</div><div class="loc-name">${esc(loc.name)}</div></div><div class="loc-proj-count"><div class="num">${loc.projects.length}</div><div class="lbl">Projects</div></div></div><div class="loc-projects">${loc.projects.map((p,j)=>`${j?'<span class="sep">•</span>':''}<strong>${esc(p.name)}</strong> <span style="opacity:.6">(${esc(p.cabinetType)})</span>`).join('')}</div><div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:${prog}%;background:${progressColor(prog)}"></div></div><span class="progress-pct" style="color:${progressColor(prog)}">${prog}%</span></div><div class="loc-footer"><span><span style="color:var(--accent)">●</span> นักลงทุน: <b>${loc.investors.length}</b></span><span>เปิดเมื่อ: <b>${loc.openDate}</b></span><span>เคส: <b>${loc.cases.length}</b></span></div></div>`}).join('')}</div>`;
+
+  const si=document.getElementById('si');if(si){si.addEventListener('input',e=>{state.query=e.target.value;render();setTimeout(()=>{const el=document.getElementById('si');if(el){el.focus();el.selectionStart=el.selectionEnd=el.value.length}},0)})}
+  document.getElementById('clr')?.addEventListener('click',()=>{state.query='';render();setTimeout(()=>document.getElementById('si')?.focus(),0)});
+  document.getElementById('cabFilter')?.addEventListener('change',e=>{state.cabinetFilter=e.target.value;render()});
+  document.querySelectorAll('.loc-card').forEach(el=>{el.addEventListener('click',()=>{state.selectedLoc=LOCATIONS.find(l=>l.id===el.dataset.loc);state.view='detail';state.tab='investors';render();window.scrollTo(0,0)})});
+  document.querySelectorAll('.cc-sub-tab').forEach(el=>{el.addEventListener('click',()=>{state.ccView=el.dataset.ccv;render()})});
+}
+
+function renderDetail(){
+  const loc=state.selectedLoc;
+  const tv=loc.projects.reduce((s,p)=>s+p.totalValue,0);const tc=loc.projects.reduce((s,p)=>s+p.collected,0);const totalCost=loc.cases.reduce((s,c)=>s+(c.cost||0),0);
+  const locCoordCount=coordCases.filter(c=>c.locId===loc.id&&c.status!=='resolved'&&c.status!=='cancelled').length;
+  const tabs=[{key:'investors',label:'ข้อมูลผู้ลงทุน',icon:'👥',count:loc.investors.length},{key:'location',label:'ข้อมูลโลเคชั่น',icon:'🏢',count:null},{key:'cases',label:'ประวัติซ่อม / เคส',icon:'🔧',count:loc.cases.length},{key:'comms',label:'การติดต่อ',icon:'💬',count:loc.comms.length}];
+  let tabContent='';
+  if(state.tab==='investors')tabContent=renderInvestorsTab(loc);
+  else if(state.tab==='location')tabContent=renderLocationTab(loc);
+  else if(state.tab==='cases')tabContent=renderCasesTab(loc);
+  else tabContent=renderCommsTab(loc);
+
+  app.innerHTML=`<div class="fade-up">${renderGlobalNav()}
+    <div class="detail-header">
+      <button class="btn-back" id="backBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg> กลับ</button>
+      <div class="detail-loc-tag"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${PAGE_META[state.page]?.icon||''} ${state.page==='cc'?'CC — READY':state.page==='dealmaker'?'DEAL IN PROGRESS':'LOCATION'}</div>
+      <div class="detail-loc-name">${esc(loc.name)}</div>
+      <div class="detail-stats"><div class="detail-stat"><div class="label">มูลค่ารวม</div><div class="value">฿${fmt(tv)}</div></div><div class="detail-stat"><div class="label">เก็บแล้ว</div><div class="value">฿${fmt(tc)}</div></div><div class="detail-stat"><div class="label">ค่าซ่อมรวม</div><div class="value">฿${fmt(totalCost)}</div></div><div class="detail-stat"><div class="label">นักลงทุน</div><div class="value">${loc.investors.length}</div></div></div>
+      <div class="detail-actions">
+        <button class="btn-action primary" data-act="coord-loc">🔧 ลงเคสประสานงาน</button>
+        ${locCoordCount?`<button class="btn-action warn" data-act="view-coord">📋 ดูเคสประสานงาน <span style="font-weight:700">(${locCoordCount})</span></button>`:''}
+      </div>
+    </div>
+    <div class="tab-bar">${tabs.map(t=>`<button class="tab-btn ${state.tab===t.key?'active':''}" data-tab="${t.key}">${t.icon} ${t.label} ${t.count!=null?`<span class="count">${t.count}</span>`:''}</button>`).join('')}</div>
+    <div id="tabContent">${tabContent}</div>
+  </div>`;
+
+  document.getElementById('backBtn').addEventListener('click',()=>{state.view='list';render()});
+  document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{state.tab=btn.dataset.tab;render()})});
+  document.querySelectorAll('[data-act="coord-loc"]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();openCoordModal(null,loc)})});
+  document.querySelectorAll('[data-act="view-coord"]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();state.page='rc';state.coordLoc=loc;state.coordFilter='all';render()})});
+  if(state.tab==='investors'){
+    document.querySelectorAll('.inv-card').forEach(el=>{
+      el.addEventListener('click',e=>{
+        if(e.target.closest('[data-act]'))return;
+        const inv=loc.investors.find(i=>i.customerId===el.dataset.inv);if(inv)openCRMModal(inv,loc);
+      });
+    });
+    document.querySelectorAll('[data-act="coord-inv"]').forEach(btn=>{
+      btn.addEventListener('click',e=>{e.stopPropagation();const inv=loc.investors.find(i=>i.customerId===btn.dataset.inv);if(inv)openCoordModal(inv,loc)});
+    });
+    document.querySelectorAll('[data-act="edit-inv"]').forEach(btn=>{
+      btn.addEventListener('click',e=>{e.stopPropagation();const inv=loc.investors.find(i=>i.customerId===btn.dataset.inv);if(inv)openEditInvestorModal(inv,loc)});
+    });
+  }
+  if(state.tab==='location'){
+    const editLocBtn=document.getElementById('editLocBtn');
+    if(editLocBtn)editLocBtn.addEventListener('click',()=>openEditLocationModal(loc));
+  }
+}
+
+function renderInvestorsTab(loc){
+  return loc.investors.map((inv,i)=>{const rc=(state.recentCases[inv.customerId]||[]);return`
+    <div class="inv-card fade-up" style="animation-delay:${i*.04}s" data-inv="${inv.customerId}">
+      <div class="inv-head"><div class="inv-info"><div class="inv-avatar">${inv.nameEn.charAt(0)}</div><div><div class="inv-name">${esc(inv.name)}${inv.debt>0?'<span class="debt-tag">ค้างชำระ</span>':''}</div><div class="inv-sub">${esc(inv.nameEn)} · <span class="cid">${inv.customerId}</span></div></div></div><div style="text-align:right"><div class="inv-amount-label">ยอดลงทุน</div><div class="inv-amount">฿${fmt(inv.amountPaid)}</div></div></div>
+      <div class="inv-meta">
+        <span>📞 ${inv.phone}</span><span>📧 ${inv.email}</span>
+        ${inv.line?`<span>💬 ${inv.line}</span>`:''}
+        ${inv.debt>0?`<span>ค้าง: <b style="color:var(--red)">฿${fmt(inv.debt)}</b></span>`:''}
+      </div>
+      <div class="inv-actions">
+        <span class="inv-cta inv-cta-edit" data-act="edit-inv" data-inv="${inv.customerId}">✏️ แก้ไข</span>
+        <span class="inv-cta inv-cta-call" data-act="crm">📞 ติดต่อ</span>
+        <span class="inv-cta inv-cta-case" data-act="coord-inv" data-inv="${inv.customerId}">🔧 ลงเคสประสาน</span>
+      </div>
+      ${rc.map(c=>`<div class="recent-case">✅ ${c.caseId} — ${c.label} — ${c.date}</div>`).join('')}
+    </div>`}).join('');
+}
+
+function renderLocationTab(loc){return`<div class="card fade-up"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center">📍 ข้อมูลสถานที่<button class="btn-edit" id="editLocBtn" data-loc="${loc.id}">✏️ แก้ไข</button></div>${[['รหัส',loc.id],['ชื่อ',loc.name],['ที่อยู่',loc.address],['จังหวัด',loc.province||'-'],['โซน',loc.zone||'-'],['ผู้ติดต่อ',loc.contactPerson],['เบอร์โทร',loc.contactPhone],['วันที่เปิด',loc.openDate],['ค่าเช่า/เดือน',loc.rentCost?'฿'+fmt(loc.rentCost):'-'],['สถานะ',loc.status||'Active'],['หมายเหตุ',loc.notes||'-']].map(([l,v])=>`<div class="info-row"><span class="info-label">${l}</span><span class="info-value">${esc(String(v))}</span></div>`).join('')}</div><div class="card fade-up" style="animation-delay:.05s;margin-top:14px"><div class="card-title">📦 โปรเจกต์</div>${loc.projects.map(p=>{const prog=pct(p.collected,p.totalValue);return`<div class="proj-mini"><div class="proj-mini-head"><div><span class="proj-mini-name">${esc(p.name)}</span><span class="proj-mini-sub">${p.id} · ${esc(p.cabinetType)}</span></div><span class="badge ${badgeClass(p.status)}"><span class="dot"></span>${p.status}</span></div><div class="proj-mini-vals"><span>มูลค่า: <b>฿${fmt(p.totalValue)}</b></span><span>เก็บแล้ว: <b style="color:var(--green)">฿${fmt(p.collected)}</b></span></div><div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:${prog}%;background:${progressColor(prog)}"></div></div><span class="progress-pct" style="color:${progressColor(prog)}">${prog}%</span></div></div>`}).join('')}</div>`}
+
+function renderCasesTab(loc){return loc.cases.map((c,i)=>`<div class="case-item fade-up" style="animation-delay:${i*.04}s"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div><div class="case-id">${c.caseId}</div><div class="case-title">${esc(c.title)}</div></div><span class="badge ${badgeClass(c.status)}"><span class="dot"></span>${c.status}</span></div><div class="case-meta"><span><span class="priority-dot" style="background:${prioColor(c.priority)}"></span>${c.priority}</span><span>ประเภท: <b style="color:var(--text)">${esc(c.type)}</b></span><span>วันที่: <b style="color:var(--text)">${c.date}</b></span><span>ผู้รับผิดชอบ: <b style="color:var(--text)">${esc(c.assignedTo)}</b></span>${c.cost!=null?`<span>ค่าใช้จ่าย: <b style="color:var(--orange)">฿${fmt(c.cost)}</b></span>`:''}</div>${c.resolution?`<div class="resolution">✅ ${esc(c.resolution)}</div>`:''}</div>`).join('')}
+
+function renderCommsTab(loc){return loc.comms.map((c,i)=>`<div class="comm-item fade-up" style="animation-delay:${i*.04}s"><span class="comm-icon">${commEmoji(c.type)}</span><div style="flex:1"><div class="comm-subject">${esc(c.subject)}</div><div class="comm-meta">${esc(c.from)} · ${c.date}</div></div><span class="comm-dir ${c.dir==='Inbound'?'dir-in':'dir-out'}">${c.dir==='Inbound'?'↓ เข้า':'↑ ออก'}</span></div>`).join('')}
+
+// ═══════════════════════════════════════════════════════════════
+// COORDINATION: Location List (Level 1)
+// ═══════════════════════════════════════════════════════════════
+function renderCoordLocationList(){
+  const totalOpen=coordCases.filter(c=>c.status!=='resolved'&&c.status!=='cancelled').length;
+
+  const locSummaries=LOCATIONS.map(loc=>{
+    const all=coordCases.filter(c=>c.locId===loc.id);
+    const open=all.filter(c=>c.status!=='resolved'&&c.status!=='cancelled');
+    const pending=all.filter(c=>c.status==='pending');
+    const progress=all.filter(c=>c.status==='in_progress');
+    const resolved=all.filter(c=>c.status==='resolved');
+    const hasCritical=open.some(c=>c.priority==='Critical');
+    const hasHigh=open.some(c=>c.priority==='High');
+    const emailCount=all.reduce((s,c)=>(c.emails?s+c.emails.length:s),0);
+    return {loc,all,open,pending,progress,resolved,hasCritical,hasHigh,emailCount};
+  });
+  locSummaries.sort((a,b)=>(b.open.length-a.open.length)||(b.all.length-a.all.length));
+
+  app.innerHTML=`
+    <div class="topbar fade-up"><div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div></div>
+    ${renderGlobalNav()}
+    <div class="fade-up" style="animation-delay:.04s;margin-bottom:20px">
+      <h2 style="font-size:1.3rem;font-weight:700">📋 เคสประสานงาน — แยกตามโลเคชั่น</h2>
+      <p style="font-size:.82rem;color:var(--text3);margin-top:4px">เลือกโลเคชั่นเพื่อดู Dashboard ประสานงานและติดตามสถานะเคส</p>
+    </div>
+    <div class="loc-grid">
+      ${locSummaries.map((s,i)=>{
+        const hasOpen=s.open.length>0;
+        const latestCases=s.all.slice(0,3);
+        return `<div class="coord-loc-card fade-up" style="animation-delay:${.04+i*.04}s;cursor:pointer" data-cloc="${s.loc.id}">
+          <div class="coord-loc-head">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div class="coord-loc-name">${esc(s.loc.name)}</div>
+                ${s.hasCritical?'<span class="badge badge-red"><span class="dot"></span>Critical</span>':''}
+                ${!s.hasCritical&&s.hasHigh?'<span class="badge badge-orange"><span class="dot"></span>High</span>':''}
+              </div>
+              <div class="coord-loc-sub">${esc(s.loc.address.split(' ').slice(0,4).join(' '))}...</div>
+            </div>
+            <div class="coord-loc-count">
+              <div class="big" style="color:${hasOpen?'var(--orange)':s.all.length>0?'var(--green)':'var(--text3)'}">${s.all.length}</div>
+              <div class="lbl">${hasOpen?'เคสเปิด '+s.open.length+' / ':''}ทั้งหมด</div>
+            </div>
+          </div>
+          <div class="coord-loc-stats">
+            <div class="coord-loc-stat"><span class="cls" style="background:var(--yellow)"></span> รอรับ: <b style="color:var(--text)">${s.pending.length}</b></div>
+            <div class="coord-loc-stat"><span class="cls" style="background:var(--accent)"></span> กำลังดำเนินการ: <b style="color:var(--text)">${s.progress.length}</b></div>
+            <div class="coord-loc-stat"><span class="cls" style="background:var(--green)"></span> เสร็จสิ้น: <b style="color:var(--text)">${s.resolved.length}</b></div>
+            <div class="coord-loc-stat">📧 อีเมลส่ง: <b style="color:#38bdf8">${s.emailCount}</b></div>
+          </div>
+          ${latestCases.length>0?`
+            <div class="coord-loc-recent">
+              <div class="coord-loc-recent-title">เคสล่าสุด</div>
+              ${latestCases.map(c=>`<div class="coord-loc-recent-item" data-woid="${c.id}" data-loclid="${s.loc.id}" style="cursor:pointer;border-radius:6px;padding:6px 8px;transition:background .15s">
+                <span class="wo-id">${c.id}</span>
+                <span class="badge ${coordStatusBadge(c.status)}" style="font-size:.65rem;padding:2px 8px"><span class="dot"></span>${coordStatusLabel(c.status)}</span>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">${esc(c.title)}</span>
+                <span class="coord-team-badge ${teamClass(c.team)}" style="font-size:.65rem;padding:2px 8px">${teamLabel(c.team)}</span>
+              </div>`).join('')}
+            </div>
+          `:`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-l);text-align:center;font-size:.82rem;color:var(--text3)">ยังไม่มีเคสประสานงาน</div>`}
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  document.querySelectorAll('.coord-loc-card').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const loc=LOCATIONS.find(l=>l.id===el.dataset.cloc);
+      if(loc){state.coordLoc=loc;state.coordFilter='all';render();window.scrollTo(0,0)}
+    });
+  });
+  document.querySelectorAll('.coord-loc-recent-item[data-woid]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      const loc=LOCATIONS.find(l=>l.id===el.dataset.loclid);
+      const c=coordCases.find(x=>x.id===el.dataset.woid);
+      if(loc&&c){state.coordLoc=loc;state.coordCase=c;render();window.scrollTo(0,0)}
+    });
+    el.addEventListener('mouseenter',()=>{el.style.background='rgba(251,146,60,.1)'});
+    el.addEventListener('mouseleave',()=>{el.style.background='transparent'});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COORDINATION: Location Detail Dashboard (Level 2)
+// ═══════════════════════════════════════════════════════════════
+function renderCoordDetail(){
+  const loc=state.coordLoc;
+  const allCases=coordCases.filter(c=>c.locId===loc.id);
+  const filters=['all','pending','in_progress','resolved'];
+  const filterLabels={all:'ทั้งหมด',pending:'รอรับเคส',in_progress:'กำลังดำเนินการ',resolved:'เสร็จสิ้น'};
+  const filtered=state.coordFilter==='all'?allCases:allCases.filter(c=>c.status===state.coordFilter);
+  const openCount=allCases.filter(c=>c.status!=='resolved'&&c.status!=='cancelled').length;
+  const pendingCount=allCases.filter(c=>c.status==='pending').length;
+  const progressCount=allCases.filter(c=>c.status==='in_progress').length;
+  const resolvedCount=allCases.filter(c=>c.status==='resolved').length;
+  const totalEmails=allCases.reduce((s,c)=>(c.emails?s+c.emails.length:s),0);
+
+  app.innerHTML=`
+    <div class="topbar fade-up"><div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div></div>
+    ${renderGlobalNav()}
+    <div class="coord-detail-header fade-up" style="animation-delay:.03s">
+      <button class="btn-back" id="coordBack"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg> กลับรายการโลเคชั่น</button>
+      <div class="detail-loc-tag" style="color:rgba(251,146,60,.6)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> COORDINATION DASHBOARD</div>
+      <div class="detail-loc-name" style="margin-bottom:18px">${esc(loc.name)}</div>
+      <div class="coord-detail-stats" style="grid-template-columns:repeat(5,1fr)">
+        <div class="coord-detail-stat"><div class="label">เคสเปิด</div><div class="value" style="color:var(--orange)">${openCount}</div></div>
+        <div class="coord-detail-stat"><div class="label">รอรับเคส</div><div class="value" style="color:var(--yellow)">${pendingCount}</div></div>
+        <div class="coord-detail-stat"><div class="label">กำลังดำเนินการ</div><div class="value" style="color:var(--accent)">${progressCount}</div></div>
+        <div class="coord-detail-stat"><div class="label">เสร็จสิ้น</div><div class="value" style="color:var(--green)">${resolvedCount}</div></div>
+        <div class="coord-detail-stat"><div class="label">📧 อีเมลส่ง</div><div class="value" style="color:#38bdf8">${totalEmails}</div></div>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn-action primary" id="coordNewCase">🔧 ลงเคสประสานงานใหม่</button>
+      </div>
+    </div>
+    <div class="filter-bar fade-up" style="animation-delay:.06s">
+      ${filters.map(f=>{const cnt=f==='all'?allCases.length:allCases.filter(c=>c.status===f).length;return`<button class="filter-chip ${state.coordFilter===f?'active':''}" data-filter="${f}">${filterLabels[f]}<span class="filter-count">(${cnt})</span></button>`}).join('')}
+    </div>
+    <div class="loc-grid">
+      ${filtered.length===0?'<div class="empty fade-up"><div class="icon">📭</div><h3>ไม่มีเคสในหมวดนี้</h3><p>ลองเลือก Filter อื่น หรือลงเคสใหม่</p></div>':filtered.map((c,i)=>`
+        <div class="coord-case-card fade-up" style="animation-delay:${.05+i*.04}s" data-woid="${c.id}">
+          <div class="coord-header">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-size:.78rem;font-weight:700;font-family:var(--mono);color:var(--accent)">${c.id}</span>
+                <span class="badge ${coordStatusBadge(c.status)}"><span class="dot"></span>${coordStatusLabel(c.status)}</span>
+                <span class="badge" style="background:${c.priority==='Critical'?'var(--red-bg)':c.priority==='High'?'var(--orange-bg)':'rgba(100,116,139,.12)'};color:${prioColor(c.priority)}"><span class="priority-dot" style="background:${prioColor(c.priority)}"></span>${c.priority}</span>
+              </div>
+              <div style="font-size:1.05rem;font-weight:700">${esc(c.title)}</div>
+            </div>
+            <span class="coord-team-badge ${teamClass(c.team)}">${teamLabel(c.team)}</span>
+          </div>
+          <div class="coord-desc">${esc(c.description)}</div>
+          <div style="display:flex;gap:16px;font-size:.78rem;color:var(--text3);flex-wrap:wrap;margin-bottom:12px">
+            ${c.investorName?`<span>👤 <b style="color:var(--text)">${esc(c.investorName)}</b></span>`:''}
+            <span>📅 ${c.created}</span>
+            <span>ผู้สร้าง: ${esc(c.createdBy)}</span>
+            ${c.photos.length?`<span>📷 ${c.photos.length} รูป</span>`:''}
+          </div>
+          ${c.photos.length?`<div class="coord-photos">${c.photos.map(p=>`<div class="cp-thumb">📷</div>`).join('')}</div>`:''}
+          <div style="font-size:.82rem;font-weight:700;color:var(--text2);margin-bottom:8px">📜 ไทม์ไลน์การดำเนินการ</div>
+          <div class="coord-timeline">
+            ${c.timeline.map((t,j)=>`<div class="coord-timeline-item ${j===c.timeline.length-1?'active':'done'}"><div class="tl-date">${t.date}</div><div class="tl-text">${esc(t.text)}</div><div class="tl-by">โดย ${esc(t.by)}</div></div>`).join('')}
+          </div>
+          ${(c.emails&&c.emails.length>0)?`
+            <div class="email-log-section">
+              <div class="email-log-title">📧 ประวัติอีเมลที่ส่ง (${c.emails.length} ฉบับ) <span class="badge badge-blue" style="font-size:.6rem;padding:1px 6px;margin-left:4px">Auto</span></div>
+              ${c.emails.slice(0,5).map(e=>`<div class="email-log-item">
+                <span class="el-type"><span class="badge ${emailTypeBadge(e.type)}" style="font-size:.6rem;padding:1px 6px">${emailTypeLabel(e.type)}</span></span>
+                <span class="el-to">${esc(e.toName)}</span>
+                <span class="el-email">${esc(e.to)}</span>
+                <span class="el-date">${e.date}</span>
+              </div>`).join('')}
+              ${c.emails.length>5?`<div class="email-log-more" data-emaillog="${c.id}">ดูทั้งหมด ${c.emails.length} ฉบับ ▾</div>`:''}
+            </div>
+          `:''}
+          ${c.status!=='resolved'&&c.status!=='cancelled'?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-l);display:flex;gap:8px">
+            <button class="btn btn-ghost" style="font-size:.8rem;padding:6px 14px" data-update="${c.id}">📝 อัปเดตสถานะ</button>
+            ${c.status==='in_progress'?`<button class="btn btn-primary" style="font-size:.8rem;padding:6px 14px;background:var(--green)" data-resolve="${c.id}">✅ เสร็จสิ้น</button>`:''}
+          </div>`:''}
+        </div>
+      `).join('')}
+    </div>`;
+
+  document.getElementById('coordBack').addEventListener('click',()=>{state.coordLoc=null;state.coordCase=null;render()});
+  document.getElementById('coordNewCase').addEventListener('click',()=>{openCoordModal(null,loc)});
+  document.querySelectorAll('.filter-chip').forEach(btn=>{btn.addEventListener('click',()=>{state.coordFilter=btn.dataset.filter;render()})});
+  document.querySelectorAll('.coord-case-card[data-woid]').forEach(card=>{
+    card.addEventListener('click',e=>{
+      if(e.target.closest('button'))return;
+      const c=coordCases.find(x=>x.id===card.dataset.woid);
+      if(c){state.coordCase=c;render()}
+    });
+    card.style.cursor='pointer';
+  });
+  document.querySelectorAll('[data-update]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const c=coordCases.find(x=>x.id===btn.dataset.update);if(c)openUpdateModal(c)})});
+  document.querySelectorAll('[data-emaillog]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const c=coordCases.find(x=>x.id===btn.dataset.emaillog);if(c)openEmailLogModal(c)})});
+  document.querySelectorAll('[data-resolve]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const c=coordCases.find(x=>x.id===btn.dataset.resolve);
+      if(c){
+        const prevSt=c.status;
+        btn.disabled=true;btn.textContent='⏳';
+        google.script.run
+        .withSuccessHandler(function(res){
+          c.status='resolved';
+          c.timeline.push({date:nowFull(),text:'✅ เคสเสร็จสิ้น — ปิดเคส',by:'คุณ (ผู้ใช้ปัจจุบัน)'});
+          if(c.notifyInvestors!==false && res && res.emailed){
+            applyCoordEmails(c,'resolved',{fromStatus:prevSt,toStatus:'resolved',text:'ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว'});
+          }
+          showToast('✅ บันทึกสถานะ Resolved ลง Sheet แล้ว'+(res&&res.emailed?' + ส่งอีเมลแจ้ง':''));
+          render();
+        })
+        .withFailureHandler(function(err){
+          btn.disabled=false;btn.textContent='✅';
+          showToast('❌ บันทึกไม่สำเร็จ: '+(err.message||err));
+        })
+        .updateCoordStatus(c.id,'resolved','เคสเสร็จสิ้น','คุณ (ผู้ใช้ปัจจุบัน)');
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COORDINATION: Case Detail (Level 3)
+// ═══════════════════════════════════════════════════════════════
+function renderCoordCaseDetail(){
+  const c=state.coordCase;
+  if(!c)return;
+  const loc=LOCATIONS.find(l=>l.id===c.locId);
+  const inv=c.investorId&&loc?loc.investors.find(i=>i.customerId===c.investorId):null;
+  const emails=c.emails||[];
+  const durationMs=c.status==='resolved'&&c.timeline.length>1?new Date(c.timeline[c.timeline.length-1].date)-new Date(c.timeline[0].date):null;
+  const durationText=durationMs?durationMs<3600000?Math.round(durationMs/60000)+' นาที':durationMs<86400000?Math.round(durationMs/3600000)+' ชั่วโมง':Math.round(durationMs/86400000)+' วัน':null;
+
+  app.innerHTML=`
+    <div class="topbar fade-up"><div class="topbar-brand"><h1><div class="brand-logo"></div>DEAL<span>PAY</span></h1></div></div>
+    ${renderGlobalNav()}
+    <div class="coord-detail-header fade-up" style="animation-delay:.03s">
+      <button class="btn-back" id="caseBack"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg> กลับ ${esc(c.locName)}</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+        <span style="font-size:.82rem;font-weight:700;font-family:var(--mono);color:var(--accent)">${c.id}</span>
+        <span class="badge ${coordStatusBadge(c.status)}"><span class="dot"></span>${coordStatusLabel(c.status)}</span>
+        <span class="badge" style="background:${c.priority==='Critical'?'var(--red-bg)':c.priority==='High'?'var(--orange-bg)':'rgba(100,116,139,.12)'};color:${prioColor(c.priority)}"><span class="priority-dot" style="background:${prioColor(c.priority)}"></span>${c.priority}</span>
+        <span class="coord-team-badge ${teamClass(c.team)}">${teamLabel(c.team)}</span>
+      </div>
+      <div class="detail-loc-name" style="font-size:1.4rem;margin-top:10px;margin-bottom:0">${esc(c.title)}</div>
+      <div style="font-size:.88rem;color:var(--text3);margin-top:6px">📍 ${esc(c.locName)}</div>
+    </div>
+
+    <div class="loc-grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-top:4px">
+      <div>
+        <div class="card fade-up" style="animation-delay:.05s">
+          <div class="card-title">📋 รายละเอียดเคส</div>
+          <div class="case-detail-desc">${esc(c.description)}</div>
+          <div class="case-detail-meta">
+            <div class="info-row"><span class="info-label">📅 วันที่สร้าง</span><span class="info-value">${c.created}</span></div>
+            <div class="info-row"><span class="info-label">👤 ผู้สร้าง</span><span class="info-value">${esc(c.createdBy)}</span></div>
+            ${inv?`<div class="info-row"><span class="info-label">🧑‍💼 นักลงทุน</span><span class="info-value">${esc(inv.name)} (${inv.customerId})</span></div>`:''}
+            ${inv?`<div class="info-row"><span class="info-label">📞 เบอร์โทร</span><span class="info-value">${esc(inv.phone)}</span></div>`:''}
+            ${inv?`<div class="info-row"><span class="info-label">📧 อีเมล</span><span class="info-value">${esc(inv.email)}</span></div>`:''}
+            ${durationText?`<div class="info-row"><span class="info-label">⏱️ ระยะเวลา</span><span class="info-value" style="color:var(--green);font-weight:700">${durationText}</span></div>`:''}
+          </div>
+          ${c.photos.length?`<div style="margin-top:14px"><div style="font-size:.82rem;font-weight:700;color:var(--text2);margin-bottom:8px">📷 รูปภาพแนบ (${c.photos.length})</div><div class="coord-photos">${c.photos.map(p=>`<div class="cp-thumb">📷</div>`).join('')}</div></div>`:''}
+        </div>
+
+        ${emails.length>0?`
+        <div class="card fade-up" style="animation-delay:.09s;margin-top:14px">
+          <div class="card-title">📧 ประวัติอีเมลที่ส่ง <span class="badge badge-blue" style="font-size:.65rem;padding:2px 8px;margin-left:6px">${emails.length} ฉบับ</span></div>
+          ${emails.map((e,i)=>`
+            <div class="email-log-item" style="margin-bottom:8px;padding:10px 12px;border:1px solid var(--border-l);border-radius:var(--rs);cursor:pointer" data-eidx="${i}">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="badge ${emailTypeBadge(e.type)}" style="font-size:.6rem;padding:2px 8px">${emailTypeLabel(e.type)}</span>
+                ${e.statusTransition?`<span style="font-size:.7rem;color:var(--yellow);font-weight:600">${esc(e.statusTransition)}</span>`:''}
+                <span style="font-size:.82rem;font-weight:600;flex:1">${esc(e.toName)}</span>
+                <span style="font-size:.72rem;color:var(--text3)">${e.date}</span>
+                <span style="font-size:.72rem;color:var(--green)">✅ ส่งแล้ว</span>
+              </div>
+              <div class="email-expand-body" id="ebody${i}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-l)">
+                <div style="font-size:.75rem;color:var(--text3);margin-bottom:3px">ถึง: <b style="color:var(--text)">${esc(e.toName)}</b> &lt;${esc(e.to)}&gt;</div>
+                <div style="font-size:.75rem;color:var(--text3);margin-bottom:6px">หัวข้อ: <b style="color:var(--text)">${esc(e.subject)}</b></div>
+                <div style="background:var(--bg);border:1px solid var(--border-l);border-radius:var(--rx);padding:10px;font-size:.73rem;line-height:1.6;color:var(--text2);white-space:pre-wrap;max-height:180px;overflow-y:auto">${esc(e.body||'(เนื้อหาจากเทมเพลตอัตโนมัติ)')}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>`:''}
+      </div>
+
+      <div>
+        <div class="card fade-up" style="animation-delay:.07s">
+          <div class="card-title">📜 ไทม์ไลน์ประวัติการดำเนินการ <span style="font-size:.75rem;font-weight:400;color:var(--text3)">(${c.timeline.length} รายการ)</span></div>
+          <div class="case-timeline-full">
+            ${c.timeline.map((t,j)=>{
+              const isLast=j===c.timeline.length-1;
+              const isFirst=j===0;
+              const iconMap={'สร้างเคส':'🆕','รับเคส':'📥','อัปเดต':'🔄','เสร็จ':'✅','ยกเลิก':'❌','ส่งไป':'📤'};
+              let icon='📌';
+              for(const [k,v] of Object.entries(iconMap)){if(t.text.includes(k)){icon=v;break}}
+              return`<div class="tl-full-item ${isLast?'tl-active':''} ${isFirst?'tl-first':''}">
+                <div class="tl-full-dot">${icon}</div>
+                <div class="tl-full-content">
+                  <div class="tl-full-date">${t.date}</div>
+                  <div class="tl-full-text">${esc(t.text)}</div>
+                  <div class="tl-full-by">โดย ${esc(t.by)}</div>
+                </div>
+              </div>`}).join('')}
+          </div>
+        </div>
+
+        ${c.status!=='resolved'&&c.status!=='cancelled'?`
+        <div class="card fade-up" style="animation-delay:.1s;margin-top:14px">
+          <div class="card-title">⚡ ดำเนินการ</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost" style="font-size:.85rem;padding:8px 18px" id="cdUpdate">📝 อัปเดตสถานะ</button>
+            ${c.status==='in_progress'?`<button class="btn btn-primary" style="font-size:.85rem;padding:8px 18px;background:var(--green)" id="cdResolve">✅ เสร็จสิ้น</button>`:''}
+          </div>
+        </div>`:''}
+
+        <div class="card fade-up" style="animation-delay:.12s;margin-top:14px">
+          <div class="card-title">📊 สรุป</div>
+          <div class="info-row"><span class="info-label">สถานะ</span><span class="badge ${coordStatusBadge(c.status)}"><span class="dot"></span>${coordStatusLabel(c.status)}</span></div>
+          <div class="info-row"><span class="info-label">ทีมรับผิดชอบ</span><span class="coord-team-badge ${teamClass(c.team)}" style="font-size:.72rem">${teamLabel(c.team)}</span></div>
+          <div class="info-row"><span class="info-label">ความเร่งด่วน</span><span style="color:${prioColor(c.priority)};font-weight:700">${c.priority}</span></div>
+          <div class="info-row"><span class="info-label">อัปเดตล่าสุด</span><span class="info-value">${c.timeline.length?c.timeline[c.timeline.length-1].date:'-'}</span></div>
+          <div class="info-row"><span class="info-label">จำนวนอีเมลส่ง</span><span class="info-value" style="color:#38bdf8;font-weight:700">${emails.length} ฉบับ</span></div>
+          <div class="info-row"><span class="info-label">อัปเดตทั้งหมด</span><span class="info-value" style="font-weight:700">${c.timeline.length} ครั้ง</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('caseBack').addEventListener('click',()=>{state.coordCase=null;render()});
+  document.querySelectorAll('[data-eidx]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const body=el.querySelector('.email-expand-body');
+      if(body)body.style.display=body.style.display==='none'?'block':'none';
+    });
+  });
+  const updBtn=document.getElementById('cdUpdate');
+  if(updBtn) updBtn.addEventListener('click',()=>openUpdateModal(c));
+  const resBtn=document.getElementById('cdResolve');
+  if(resBtn) resBtn.addEventListener('click',()=>{
+    const prevSt=c.status;
+    resBtn.disabled=true;resBtn.innerHTML='⏳ กำลังบันทึก...';
+    google.script.run
+      .withSuccessHandler(function(res){
+        c.status='resolved';
+        c.timeline.push({date:nowFull(),text:'✅ เคสเสร็จสิ้น — ปิดเคส',by:'คุณ (ผู้ใช้ปัจจุบัน)'});
+        if(c.notifyInvestors!==false && res && res.emailed){
+          applyCoordEmails(c,'resolved',{fromStatus:prevSt,toStatus:'resolved',text:'ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว'});
+        }
+        showToast('✅ บันทึก Resolved ลง Sheet แล้ว'+(res&&res.emailed?' + ส่งอีเมลแจ้ง':''));
+        render();
+      })
+      .withFailureHandler(function(err){
+        resBtn.disabled=false;resBtn.innerHTML='✅ เสร็จสิ้น';
+        showToast('❌ บันทึกไม่สำเร็จ: '+(err.message||err));
+      })
+      .updateCoordStatus(c.id,'resolved','เคสเสร็จสิ้น','คุณ (ผู้ใช้ปัจจุบัน)');
+  });
+  bindGlobalNav();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EMAIL LOG MODAL
+// ═══════════════════════════════════════════════════════════════
+function openEmailLogModal(c){
+  let root=document.getElementById('modalRoot');
+  if(!root){root=document.createElement('div');root.id='modalRoot';document.body.appendChild(root)}
+  const emails=c.emails||[];
+  let expandedIdx=null;
+  function renderLogModal(){
+    root.innerHTML=`<div class="modal-overlay" id="elOverlay"><div class="modal modal-sm">
+      <div class="modal-call-header" style="background:linear-gradient(135deg,#0369a1,#38bdf8)">
+        <div class="call-info"><span class="ci-icon">📧</span><div><div class="ci-label">ประวัติอีเมลทั้งหมด</div><div class="ci-sub">${c.id} — ${esc(c.title)}</div></div></div>
+        <div style="text-align:right"><div style="font-size:1.5rem;font-weight:700;font-family:var(--mono)">${emails.length}</div><div style="font-size:.7rem;opacity:.6">ฉบับ</div></div>
+      </div>
+      <div class="modal-form-body" style="max-height:60vh;overflow-y:auto">
+        ${emails.length===0?'<div style="text-align:center;padding:30px;color:var(--text3)">ยังไม่มีอีเมลที่ส่ง</div>':emails.map((e,i)=>`
+          <div style="border:1px solid var(--border-l);border-radius:var(--rs);margin-bottom:10px;overflow:hidden;cursor:pointer" data-expand="${i}">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:${expandedIdx===i?'var(--bg3)':'transparent'};flex-wrap:wrap">
+              <span class="badge ${emailTypeBadge(e.type)}" style="font-size:.65rem;padding:2px 8px;flex-shrink:0">${emailTypeLabel(e.type)}</span>
+              ${e.statusTransition?`<span style="font-size:.68rem;color:var(--yellow);font-weight:600;flex-shrink:0">${esc(e.statusTransition)}</span>`:''}
+              <span style="font-weight:600;font-size:.82rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.toName)}</span>
+              <span style="font-size:.7rem;color:var(--text3);flex-shrink:0">${e.date}</span>
+              <span style="font-size:.75rem;color:var(--green);flex-shrink:0">✅ ส่งแล้ว</span>
+            </div>
+            ${expandedIdx===i?`<div style="padding:12px 14px;border-top:1px solid var(--border-l);background:var(--bg2)">
+              <div style="font-size:.75rem;color:var(--text3);margin-bottom:4px">ถึง: <b style="color:var(--text)">${esc(e.toName)}</b> &lt;${esc(e.to)}&gt;</div>
+              <div style="font-size:.75rem;color:var(--text3);margin-bottom:8px">หัวข้อ: <b style="color:var(--text)">${esc(e.subject)}</b></div>
+              <div style="background:var(--bg);border:1px solid var(--border-l);border-radius:var(--rx);padding:12px;font-size:.75rem;line-height:1.6;color:var(--text2);white-space:pre-wrap;max-height:200px;overflow-y:auto">${esc(e.body||'(เนื้อหาอีเมลจากเทมเพลตอัตโนมัติ)')}</div>
+            </div>`:''}
+          </div>
+        `).join('')}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="elClose">ปิด</button>
+      </div>
+    </div></div>`;
+    document.getElementById('elOverlay').addEventListener('click',e=>{if(e.target.id==='elOverlay')closeCoordModal()});
+    document.getElementById('elClose').addEventListener('click',closeCoordModal);
+    document.querySelectorAll('[data-expand]').forEach(el=>{el.addEventListener('click',()=>{expandedIdx=expandedIdx===parseInt(el.dataset.expand)?null:parseInt(el.dataset.expand);renderLogModal()})});
+  }
+  renderLogModal();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDIT LOCATION MODAL
+// ═══════════════════════════════════════════════════════════════
+function openEditLocationModal(loc){
+  const overlay=document.createElement('div');overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal modal-sm" style="width:580px">
+    <div class="modal-pad">
+      <div class="modal-head"><div><div style="font-size:1.2rem;font-weight:700;color:var(--text)">✏️ แก้ไขข้อมูลโลเคชั่น</div><div style="font-size:.82rem;color:var(--text3);margin-top:2px">${esc(loc.id)} — ${esc(loc.name)}</div></div><button class="modal-close" id="emClose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
+        <div class="edit-form-grid">
+          <div class="form-group"><label>ชื่อโลเคชั่น</label><input class="form-input" id="elName" value="${esc(loc.name)}"></div>
+          <div class="form-group"><label>ที่อยู่</label><textarea class="form-input" id="elAddr" rows="2">${esc(loc.address)}</textarea></div>
+          <div class="form-row2">
+            <div class="form-group"><label>จังหวัด</label><input class="form-input" id="elProv" value="${esc(loc.province||'')}"></div>
+            <div class="form-group"><label>โซน</label><input class="form-input" id="elZone" value="${esc(loc.zone||'')}"></div>
+          </div>
+          <div class="form-row2">
+            <div class="form-group"><label>ผู้ติดต่อ</label><input class="form-input" id="elContact" value="${esc(loc.contactPerson||'')}"></div>
+            <div class="form-group"><label>เบอร์โทรผู้ติดต่อ</label><input class="form-input" id="elPhone" value="${esc(loc.contactPhone||'')}"></div>
+          </div>
+          <div class="form-row2">
+            <div class="form-group"><label>ค่าเช่า/เดือน (฿)</label><input class="form-input" type="number" id="elRent" value="${loc.rentCost||0}"></div>
+            <div class="form-group"><label>สถานะ</label><select class="form-input" id="elStatus"><option value="Active" ${loc.status==='Active'?'selected':''}>Active</option><option value="On Hold" ${loc.status==='On Hold'?'selected':''}>On Hold</option><option value="Closed" ${loc.status==='Closed'?'selected':''}>Closed</option></select></div>
+          </div>
+          <div class="form-group"><label>หมายเหตุ</label><textarea class="form-input" id="elNotes" rows="2">${esc(loc.notes||'')}</textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px"><button class="btn btn-ghost" id="emCancel">ยกเลิก</button><button class="btn btn-primary" id="emSave" style="background:linear-gradient(135deg,var(--accent),#0088a8)">💾 บันทึก</button></div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#emClose').onclick=()=>overlay.remove();
+  overlay.querySelector('#emCancel').onclick=()=>overlay.remove();
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
+  overlay.querySelector('#emSave').onclick=()=>{
+    const updates={
+      name:document.getElementById('elName').value.trim(),
+      address:document.getElementById('elAddr').value.trim(),
+      province:document.getElementById('elProv').value.trim(),
+      zone:document.getElementById('elZone').value.trim(),
+      contactPerson:document.getElementById('elContact').value.trim(),
+      contactPhone:document.getElementById('elPhone').value.trim(),
+      rentCost:Number(document.getElementById('elRent').value)||0,
+      status:document.getElementById('elStatus').value,
+      notes:document.getElementById('elNotes').value.trim()
+    };
+    const saveBtn=overlay.querySelector('#emSave');
+    saveBtn.disabled=true;saveBtn.innerHTML='⏳ กำลังบันทึก...';
+    google.script.run.withSuccessHandler(()=>{
+      overlay.remove();
+      Object.assign(loc,updates);
+      state.selectedLoc=loc;
+      render();
+      showToast('✅ บันทึกข้อมูลโลเคชั่นเรียบร้อย');
+    }).withFailureHandler(err=>{
+      saveBtn.disabled=false;saveBtn.innerHTML='💾 บันทึก';
+      showToast('❌ เกิดข้อผิดพลาด: '+err.message);
+    }).updateLocation(loc.id, updates);
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDIT INVESTOR MODAL
+// ═══════════════════════════════════════════════════════════════
+function openEditInvestorModal(inv,loc){
+  const overlay=document.createElement('div');overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal modal-sm" style="width:620px">
+    <div class="modal-pad">
+      <div class="modal-head"><div style="display:flex;align-items:center;gap:12px"><div class="inv-avatar" style="width:44px;height:44px;font-size:1.1rem">${inv.nameEn.charAt(0)}</div><div><div style="font-size:1.15rem;font-weight:700;color:var(--text)">✏️ แก้ไขข้อมูลผู้ลงทุน</div><div style="font-size:.82rem;color:var(--text3);margin-top:2px">${esc(inv.customerId)} — ${esc(inv.name)}</div></div></div><button class="modal-close" id="eiClose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
+        <div class="edit-section-title">👤 ข้อมูลส่วนตัว</div>
+        <div class="edit-form-grid">
+          <div class="form-row2">
+            <div class="form-group"><label>ชื่อ-สกุล (ไทย)</label><input class="form-input" id="eiNameTh" value="${esc(inv.name)}"></div>
+            <div class="form-group"><label>ชื่อ-สกุล (EN)</label><input class="form-input" id="eiNameEn" value="${esc(inv.nameEn)}"></div>
+          </div>
+          <div class="form-group"><label>ที่อยู่</label><textarea class="form-input" id="eiAddr" rows="2">${esc(inv.address||'')}</textarea></div>
+        </div>
+        <div class="edit-section-title" style="margin-top:16px">📞 ช่องทางติดต่อ</div>
+        <div class="edit-form-grid">
+          <div class="form-row2">
+            <div class="form-group"><label>เบอร์โทรศัพท์</label><input class="form-input" id="eiPhone" value="${esc(inv.phone)}"></div>
+            <div class="form-group"><label>อีเมล</label><input class="form-input" type="email" id="eiEmail" value="${esc(inv.email)}"></div>
+          </div>
+          <div class="form-row2">
+            <div class="form-group"><label>Line ID</label><input class="form-input" id="eiLine" value="${esc(inv.line||'')}"></div>
+            <div class="form-group"><label>Facebook</label><input class="form-input" id="eiFb" value="${esc(inv.facebook||'')}"></div>
+          </div>
+        </div>
+        <div class="edit-section-title" style="margin-top:16px">💰 ข้อมูลการลงทุน</div>
+        <div class="edit-form-grid">
+          <div class="form-row3">
+            <div class="form-group"><label>ยอดลงทุน (฿)</label><input class="form-input" type="number" id="eiPaid" value="${inv.amountPaid||0}"></div>
+            <div class="form-group"><label>หนี้ค้างชำระ (฿)</label><input class="form-input" type="number" id="eiDebt" value="${inv.debt||0}"></div>
+            <div class="form-group"><label>Risk Score</label><input class="form-input" type="number" id="eiRisk" value="${inv.riskScore||0}" min="0" max="100"></div>
+          </div>
+          <div class="form-row2">
+            <div class="form-group"><label>สถานะ</label><select class="form-input" id="eiStatus"><option value="Active" ${inv.status==='Active'?'selected':''}>Active</option><option value="Inactive" ${inv.status==='Inactive'?'selected':''}>Inactive</option><option value="Suspended" ${inv.status==='Suspended'?'selected':''}>Suspended</option></select></div>
+            <div class="form-group"><label>เลข ID Card 4 หลักสุดท้าย</label><input class="form-input" id="eiId4" value="${esc(inv.idCardLast4||'')}" maxlength="4"></div>
+          </div>
+          <div class="form-group"><label>หมายเหตุ</label><textarea class="form-input" id="eiNotes" rows="2">${esc(inv.notes||'')}</textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px"><button class="btn btn-ghost" id="eiCancel">ยกเลิก</button><button class="btn btn-primary" id="eiSave" style="background:linear-gradient(135deg,#FB923C,#c2410c)">💾 บันทึก</button></div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#eiClose').onclick=()=>overlay.remove();
+  overlay.querySelector('#eiCancel').onclick=()=>overlay.remove();
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
+  overlay.querySelector('#eiSave').onclick=()=>{
+    const updates={
+      name:document.getElementById('eiNameTh').value.trim(),
+      nameEn:document.getElementById('eiNameEn').value.trim(),
+      address:document.getElementById('eiAddr').value.trim(),
+      phone:document.getElementById('eiPhone').value.trim(),
+      email:document.getElementById('eiEmail').value.trim(),
+      line:document.getElementById('eiLine').value.trim(),
+      facebook:document.getElementById('eiFb').value.trim(),
+      amountPaid:Number(document.getElementById('eiPaid').value)||0,
+      debt:Number(document.getElementById('eiDebt').value)||0,
+      riskScore:Number(document.getElementById('eiRisk').value)||0,
+      status:document.getElementById('eiStatus').value,
+      idCardLast4:document.getElementById('eiId4').value.trim(),
+      notes:document.getElementById('eiNotes').value.trim()
+    };
+    const saveBtn=overlay.querySelector('#eiSave');
+    saveBtn.disabled=true;saveBtn.innerHTML='⏳ กำลังบันทึก...';
+    google.script.run.withSuccessHandler(()=>{
+      overlay.remove();
+      Object.assign(inv,updates);
+      render();
+      showToast('✅ บันทึกข้อมูลผู้ลงทุนเรียบร้อย');
+    }).withFailureHandler(err=>{
+      saveBtn.disabled=false;saveBtn.innerHTML='💾 บันทึก';
+      showToast('❌ เกิดข้อผิดพลาด: '+err.message);
+    }).updateInvestor(inv.customerId, updates);
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST NOTIFICATION
+// ═══════════════════════════════════════════════════════════════
+function showToast(msg){
+  let t=document.getElementById('globalToast');
+  if(!t){t=document.createElement('div');t.id='globalToast';document.body.appendChild(t);}
+  t.textContent=msg;t.className='toast-show';
+  clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className='toast-hide'},3000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COORDINATION CASE CREATE MODAL
+// ═══════════════════════════════════════════════════════════════
+let coordModalState={};
+
+function openCoordModal(inv,loc){
+  coordModalState={step:'form',inv,loc,data:{team:'repair',priority:'Medium',title:'',description:'',photos:[],notifyInvestors:true},woId:genWOId()};
+  renderCoordModal();
+}
+
+function renderCoordModal(){
+  const {inv,loc,data,woId,step}=coordModalState;
+  let root=document.getElementById('modalRoot');
+  if(!root){root=document.createElement('div');root.id='modalRoot';document.body.appendChild(root)}
+
+  if(step==='form'){
+    const recipients=inv?[inv]:loc.investors;
+    root.innerHTML=`<div class="modal-overlay" id="mOverlay">
+      <div class="modal modal-sm">
+        <div class="modal-call-header" style="background:linear-gradient(135deg,#b45309,#fb923c)">
+          <div class="call-info"><span class="ci-icon">🔧</span><div><div class="ci-label">ลงเคสประสานงาน</div><div class="ci-sub">${esc(loc.name)}${inv?' · '+esc(inv.name):''}</div></div></div>
+          <div style="text-align:right"><div style="font-size:.75rem;opacity:.6">Work Order</div><div style="font-size:1rem;font-weight:700;font-family:var(--mono)">${woId}</div></div>
+        </div>
+        <div class="modal-form-body">
+          <div class="form-group"><label>ส่งถึงทีม</label>
+            <div class="chip-group">${['repair','location','billing','other'].map(t=>`<span class="chip ${data.team===t?'selected':''}" data-key="team" data-val="${t}">${teamLabel(t)}</span>`).join('')}</div></div>
+          <div class="form-group"><label>ระดับความเร่งด่วน</label>
+            <div class="chip-group">${['Low','Medium','High','Critical'].map(p=>`<span class="chip ${data.priority===p?'selected':''}" data-key="priority" data-val="${p}"><span class="priority-dot" style="background:${prioColor(p)};display:inline-block;vertical-align:1px;margin-right:4px"></span>${p}</span>`).join('')}</div></div>
+          <div class="form-group"><label>หัวข้อเคส</label><input class="form-input" type="text" data-key="title" value="${esc(data.title)}" placeholder="เช่น ตู้ Boxing Machine เหรียญติด"></div>
+          <div class="form-group"><label>รายละเอียดปัญหา / สิ่งที่ต้องดำเนินการ</label><textarea class="form-input" data-key="description" placeholder="อธิบายรายละเอียดให้ครบถ้วน เช่น ตำแหน่งตู้ อาการ สิ่งที่ต้องทำ...">${esc(data.description)}</textarea></div>
+          <div class="form-group"><label>📷 แนบรูปภาพประกอบ</label>
+            <div class="photo-upload-zone" id="photoZone"><div class="puz-icon">📸</div><div class="puz-text">คลิกเพื่อแนบรูปภาพ</div><div class="puz-sub">รองรับ JPG, PNG (จำลองการอัปโหลด)</div></div>
+            <div class="photo-thumbs" id="photoThumbs">${data.photos.map((p,i)=>`<div class="photo-thumb"><div style="font-size:1.5rem">📷</div><button class="remove-photo" data-idx="${i}">×</button></div>`).join('')}</div>
+          </div>
+          ${inv?`<div style="background:var(--accent-bg);border:1px solid rgba(0,180,216,.15);border-radius:var(--rs);padding:12px 16px;font-size:.82rem;margin-bottom:14px"><span style="font-weight:700;color:var(--accent)">👤 นักลงทุนที่เกี่ยวข้อง:</span> ${esc(inv.name)} (${inv.customerId})</div>`:''}
+          <hr class="form-divider">
+          <div class="email-notify-box">
+            <div class="email-notify-header">
+              <span class="email-notify-title">📧 ส่งอีเมลแจ้งนักลงทุนอัตโนมัติ</span>
+              <label class="toggle-switch"><input type="checkbox" id="notifyToggle" ${data.notifyInvestors?'checked':''}><span class="toggle-slider"></span></label>
+            </div>
+            <div style="font-size:.75rem;color:var(--text3);margin-bottom:8px">ระบบจะส่งอีเมลแจ้งนักลงทุนอัตโนมัติเมื่อ: สร้างเคส / เปลี่ยนสถานะ / เสร็จสิ้น</div>
+            ${recipients.length>0?`<div style="font-size:.75rem;color:var(--text2);font-weight:600;margin-bottom:6px">ผู้รับ (${recipients.length} คน):</div>
+            <div class="email-recipients">${recipients.map(r=>`<div class="email-recipient"><span class="esi-icon" style="color:#38bdf8">📨</span><span class="er-name">${esc(r.name)}</span><span class="er-email">${r.email}</span></div>`).join('')}</div>`:'<div class="email-no-investor">⚠️ โลเคชั่นนี้ยังไม่มีนักลงทุน — จะไม่มีการส่งอีเมล</div>'}
+          </div>
+          <div class="form-group"><label>📝 หมายเหตุเพิ่มเติม (Internal)</label><textarea class="form-input notes-area" data-key="internalNotes" placeholder="บันทึกเพิ่มเติมสำหรับทีมภายใน...">${esc(data.internalNotes||'')}</textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="coordCancel">ยกเลิก</button>
+          <button class="btn btn-primary" id="coordSubmit" style="background:linear-gradient(135deg,#b45309,#fb923c)">📤 ส่งเคสประสานงาน</button>
+        </div>
+      </div>
+    </div>`;
+    document.getElementById('mOverlay').addEventListener('click',e=>{if(e.target.id==='mOverlay')closeCoordModal()});
+    document.getElementById('coordCancel').addEventListener('click',closeCoordModal);
+    document.getElementById('notifyToggle')?.addEventListener('change',e=>{coordModalState.data.notifyInvestors=e.target.checked});
+    document.querySelectorAll('.chip[data-key]').forEach(el=>{el.addEventListener('click',()=>{coordModalState.data[el.dataset.key]=el.dataset.val;renderCoordModal()})});
+    document.querySelectorAll('.form-input[data-key]').forEach(el=>{el.addEventListener('input',()=>{coordModalState.data[el.dataset.key]=el.value})});
+    document.getElementById('photoZone').addEventListener('click',()=>{coordModalState.data.photos.push(`photo_${Date.now()}.jpg`);renderCoordModal()});
+    document.querySelectorAll('.remove-photo').forEach(el=>{el.addEventListener('click',e=>{e.stopPropagation();coordModalState.data.photos.splice(parseInt(el.dataset.idx),1);renderCoordModal()})});
+    document.getElementById('coordSubmit').addEventListener('click',async()=>{
+      const d=coordModalState.data;if(!d.title.trim()){alert('กรุณากรอกหัวข้อเคส');return}
+      const btn=document.getElementById('coordSubmit');btn.disabled=true;btn.innerHTML='<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .8s linear infinite"></span> กำลังบันทึก...';
+      google.script.run
+        .withSuccessHandler(function(woId){
+          console.log('[DEALPAY] ✅ saveCoordCase →',woId);
+          const newCase={id:woId,locId:loc.id,locName:loc.name,investorId:inv?.customerId||null,investorName:inv?.name||null,team:d.team,priority:d.priority,title:d.title,description:d.description,photos:[...d.photos],status:'pending',created:nowFull(),createdBy:'คุณ (ผู้ใช้ปัจจุบัน)',emails:[],notifyInvestors:d.notifyInvestors,timeline:[{date:nowFull(),text:`สร้างเคส — ส่งไปยัง${teamLabel(d.team)}`,by:'คุณ (ผู้ใช้ปัจจุบัน)'}]};
+          let sentEmails=[];
+          if(d.notifyInvestors){sentEmails=applyCoordEmails(newCase,'created',null)}
+          coordCases.unshift(newCase);
+          coordModalState.woId=woId;
+          coordModalState.step='done';coordModalState.newCase=newCase;coordModalState.sentEmails=sentEmails;renderCoordModal();
+        })
+        .withFailureHandler(function(err){
+          console.error('[DEALPAY] ❌ saveCoordCase ล้มเหลว',err);
+          btn.disabled=false;btn.innerHTML='🔄 ลองอีกครั้ง';
+          showToast('❌ สร้างเคสไม่สำเร็จ: '+(err.message||err));
+        })
+        .saveCoordCase({locId:loc.id,locName:loc.name,investorId:inv?.customerId||'',investorName:inv?.name||'',team:d.team,priority:d.priority,title:d.title,description:d.description,createdBy:'คุณ (ผู้ใช้ปัจจุบัน)'});
+    });
+  } else if(step==='done'){
+    const nc=coordModalState.newCase;
+    const sentEmails=coordModalState.sentEmails||[];
+    root.innerHTML=`<div class="modal-overlay"><div class="modal modal-sm">
+      <div class="done-wrap">
+        <div class="done-check"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
+        <div class="done-title">ส่งเคสประสานงานเรียบร้อย!</div>
+        <div class="done-sub">ส่งแจ้ง <b>${teamLabel(nc.team)}</b> แล้ว — รอรับเคส</div>
+        <div class="done-summary">
+          <div class="ds-item"><div class="ds-label">Work Order</div><div class="ds-val" style="color:var(--orange)">${nc.id}</div></div><div class="ds-divider"></div>
+          <div class="ds-item"><div class="ds-label">ทีม</div><div class="ds-val">${teamLabel(nc.team)}</div></div><div class="ds-divider"></div>
+          <div class="ds-item"><div class="ds-label">ระดับ</div><div class="ds-val" style="color:${prioColor(nc.priority)}">${nc.priority}</div></div>
+        </div>
+        ${sentEmails.length>0?`
+          <div class="email-sent-summary">
+            <div class="ess-title">📧 อีเมลแจ้งนักลงทุน — ส่งแล้ว ${sentEmails.length} ฉบับ</div>
+            ${sentEmails.map(e=>`<div class="email-sent-item"><span class="esi-icon">✅</span><span class="esi-name">${esc(e.toName)}</span><span class="esi-email">${esc(e.to)}</span></div>`).join('')}
+            <div style="font-size:.7rem;color:var(--text3);margin-top:8px">ระบบจะส่งอีเมลอัปเดตอัตโนมัติเมื่อสถานะเปลี่ยนแปลง</div>
+          </div>
+        `:nc.notifyInvestors===false?'<div style="font-size:.82rem;color:var(--text3);margin:12px 0">📧 ไม่ได้ส่งอีเมลแจ้งนักลงทุน (ปิดอยู่)</div>':'<div style="font-size:.82rem;color:var(--text3);margin:12px 0">📧 ไม่มีนักลงทุนในโลเคชั่นนี้</div>'}
+        <div class="done-actions">
+          <button class="btn btn-ghost" id="dcClose">ปิด</button>
+          <button class="btn btn-primary" id="dcTrack" style="background:var(--accent)">📋 ไปดูหน้าเคสประสานงาน</button>
+        </div>
+      </div>
+    </div></div>`;
+    document.getElementById('dcClose').addEventListener('click',()=>{closeCoordModal();render()});
+    document.getElementById('dcTrack').addEventListener('click',()=>{closeCoordModal();state.page='rc';state.coordLoc=coordModalState.loc;state.coordFilter='all';render()});
+  }
+}
+
+function closeCoordModal(){document.getElementById('modalRoot')?.remove()}
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATE STATUS MODAL
+// ═══════════════════════════════════════════════════════════════
+function openUpdateModal(c){
+  let root=document.getElementById('modalRoot');
+  if(!root){root=document.createElement('div');root.id='modalRoot';document.body.appendChild(root)}
+  let newStatus=c.status==='pending'?'in_progress':c.status;let notifyInv=c.notifyInvestors!==false;
+  const recipients=c.investorId?getInvestorByEmail(c.locId,c.investorId):getLocInvestors(c.locId);
+  function renderUpdateUI(){
+    const statusChanged=newStatus!==c.status;
+    root.innerHTML=`<div class="modal-overlay" id="uOverlay"><div class="modal modal-sm">
+    <div class="modal-call-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">
+      <div class="call-info"><span class="ci-icon">📝</span><div><div class="ci-label">อัปเดตเคส ${c.id}</div><div class="ci-sub">${esc(c.title)}</div></div></div>
+    </div>
+    <div class="modal-form-body">
+      <div class="form-group"><label>เปลี่ยนสถานะ</label>
+        <div class="chip-group" id="statusChips">${['pending','in_progress','resolved'].map(s=>`<span class="chip ${newStatus===s?'selected':''}" data-val="${s}">${coordStatusLabel(s)}</span>`).join('')}</div>
+        ${statusChanged?`<div style="margin-top:8px;padding:8px 12px;background:var(--yellow-bg);border:1px solid rgba(251,191,36,.2);border-radius:var(--rx);font-size:.78rem;display:flex;align-items:center;gap:8px">
+          <span>🔄</span>
+          <span><b style="color:var(--text)">${coordStatusLabel(c.status)}</b> <span style="color:var(--yellow)">→</span> <b style="color:var(--yellow)">${coordStatusLabel(newStatus)}</b></span>
+          ${notifyInv&&recipients.length>0?'<span style="color:#38bdf8;margin-left:auto;font-size:.7rem">📧 จะส่งอีเมลแจ้งนักลงทุนทันที</span>':''}
+        </div>`:''}
+      </div>
+      <div class="form-group"><label>รายละเอียดอัปเดต</label><textarea class="form-input" id="updateText" placeholder="เช่น ทีมช่างกดรับเคสแล้ว / ช่างถึงหน้างาน / กำลังซ่อม / เปลี่ยนอะไหล่แล้ว..."></textarea></div>
+      <hr class="form-divider">
+      <div class="email-notify-box" style="${statusChanged?'border-color:rgba(56,189,248,.4)':''}">
+        <div class="email-notify-header">
+          <span class="email-notify-title">📧 แจ้งเตือนนักลงทุนอัตโนมัติ</span>
+          <label class="toggle-switch"><input type="checkbox" id="uNotifyToggle" ${notifyInv?'checked':''}><span class="toggle-slider"></span></label>
+        </div>
+        <div style="font-size:.75rem;color:var(--text3);margin-bottom:6px">${statusChanged?'<span style="color:#38bdf8;font-weight:600">✓ สถานะเปลี่ยน — ระบบจะส่งอีเมลแจ้งนักลงทุนทันทีเมื่อกดบันทึก</span>':'เมื่อมีการเปลี่ยนสถานะ ระบบจะส่งอีเมลแจ้งนักลงทุนอัตโนมัติ'}</div>
+        ${recipients.length>0?`<div class="email-recipients">${recipients.slice(0,4).map(r=>`<div class="email-recipient"><span style="color:#38bdf8">📨</span><span class="er-name">${esc(r.name)}</span><span class="er-email">${r.email}</span></div>`).join('')}${recipients.length>4?`<div class="email-recipient" style="color:var(--text3)">+${recipients.length-4} คน</div>`:''}</div>`:'<div class="email-no-investor">⚠️ ไม่มีนักลงทุนที่เกี่ยวข้อง</div>'}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="uCancel">ยกเลิก</button>
+      <button class="btn btn-primary" id="uSave" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">${statusChanged&&notifyInv&&recipients.length>0?'💾 บันทึก & ส่งอีเมลแจ้ง':'💾 บันทึก'}</button>
+    </div>
+  </div></div>`;
+    document.getElementById('uOverlay').addEventListener('click',e=>{if(e.target.id==='uOverlay')closeCoordModal()});
+    document.getElementById('uCancel').addEventListener('click',closeCoordModal);
+    document.getElementById('uNotifyToggle')?.addEventListener('change',e=>{notifyInv=e.target.checked;renderUpdateUI()});
+    document.querySelectorAll('#statusChips .chip').forEach(el=>{el.addEventListener('click',()=>{newStatus=el.dataset.val;renderUpdateUI();})});
+    document.getElementById('uSave').addEventListener('click',()=>{
+      const txt=document.getElementById('updateText').value.trim();
+      const prevStatus=c.status;
+      if(prevStatus===newStatus&&!txt){closeCoordModal();return}
+      const saveBtn=document.getElementById('uSave');
+      saveBtn.disabled=true;saveBtn.innerHTML='<span style="width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .8s linear infinite"></span> กำลังบันทึก...';
+      if(prevStatus!==newStatus){
+        google.script.run
+          .withSuccessHandler(function(res){
+            c.status=newStatus;
+            if(txt)c.timeline.push({date:nowFull(),text:txt,by:'คุณ (ผู้ใช้ปัจจุบัน)'});
+            if(newStatus==='resolved'&&!txt)c.timeline.push({date:nowFull(),text:'✅ เคสเสร็จสิ้น',by:'คุณ (ผู้ใช้ปัจจุบัน)'});
+            if(notifyInv&&recipients.length>0 && res && res.emailed){
+              const emailType=newStatus==='resolved'?'resolved':'status_change';
+              applyCoordEmails(c,emailType,{fromStatus:prevStatus,toStatus:newStatus,text:txt||''});
+            }
+            showToast('✅ บันทึกสถานะลง Sheet แล้ว'+(res&&res.emailed?' + ส่งอีเมลแจ้ง':''));
+            closeCoordModal();render();
+          })
+          .withFailureHandler(function(err){
+            saveBtn.disabled=false;saveBtn.innerHTML='🔄 ลองอีกครั้ง';
+            showToast('❌ บันทึกไม่สำเร็จ: '+(err.message||err));
+          })
+          .updateCoordStatus(c.id,newStatus,txt||'','คุณ (ผู้ใช้ปัจจุบัน)');
+      } else {
+        if(txt)c.timeline.push({date:nowFull(),text:txt,by:'คุณ (ผู้ใช้ปัจจุบัน)'});
+        closeCoordModal();render();
+      }
+    });
+  }
+  renderUpdateUI();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRM CONTACT MODAL
+// ═══════════════════════════════════════════════════════════════
+let modalState={};let timerHandle=null;
+function openCRMModal(inv,loc){modalState={step:'select',inv,loc,type:null,formData:{},callNotes:'',caseId:genCaseId(),startTime:nowTime(),seconds:0,duration:'00:00'};renderCRMModal()}
+function closeCRM(){stopTimer();document.getElementById('modalRoot')?.remove()}
+function startTimer(){const start=Date.now();timerHandle=setInterval(()=>{const el=Math.floor((Date.now()-start)/1000);modalState.seconds=el;modalState.duration=`${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;const tv=document.getElementById('timerVal');if(tv)tv.textContent=modalState.duration},1000)}
+function stopTimer(){if(timerHandle){clearInterval(timerHandle);timerHandle=null}}
+function renderCRMModal(){
+  let root=document.getElementById('modalRoot');if(!root){root=document.createElement('div');root.id='modalRoot';document.body.appendChild(root)}
+  const{step,inv,loc,type}=modalState;const cfg=type?CONTACT_TYPES[type]:null;
+  if(step==='select'){root.innerHTML=renderCRMSelect();bindCRMSelect()}
+  else if(step==='sendBill'){root.innerHTML=renderCRMSendBill();bindCRMSendBill()}
+  else if(step==='form'){root.innerHTML=renderCRMForm();bindCRMForm()}
+  else if(step==='summary'){root.innerHTML=renderCRMSummary();bindCRMSummary()}
+  else if(step==='done'){root.innerHTML=renderCRMDone();bindCRMDone()}
+}
+
+function renderCRMSelect(){const{inv,loc}=modalState;return`<div class="modal-overlay" id="mOverlay"><div class="modal modal-sm"><div class="modal-pad">
+  <div class="modal-head"><div class="modal-investor"><div class="inv-avatar avatar">${inv.nameEn.charAt(0)}</div><div><div class="name">${esc(inv.name)}</div><div class="sub">${esc(inv.nameEn)} · <span style="color:var(--accent);font-weight:600">${inv.customerId}</span></div><div class="loc">${esc(loc.name)}</div></div></div><button class="modal-close" id="mClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <div class="quick-stats"><div class="quick-stat"><div class="ql">ยอดลงทุน</div><div class="qv" style="color:var(--green)">฿${fmt(inv.amountPaid)}</div></div><div class="quick-stat"><div class="ql">ยอดค้าง</div><div class="qv" style="color:${inv.debt>0?'var(--red)':'var(--green)'}">${inv.debt>0?'฿'+fmt(inv.debt):'ไม่มี'}</div></div><div class="quick-stat"><div class="ql">ติดต่อล่าสุด</div><div class="qv" style="color:var(--accent)">${inv.lastContact}</div></div></div>
+  <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--bg3);border-radius:var(--rs);margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem"><span style="color:var(--accent)">📞</span><span style="color:var(--text);font-weight:600">${inv.phone}</span></div>
+    <div style="width:1px;height:16px;background:var(--border-l)"></div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem"><span style="color:#38bdf8">📧</span><span style="color:var(--text);font-weight:600">${inv.email}</span></div>
+    ${inv.line?`<div style="width:1px;height:16px;background:var(--border-l)"></div><div style="display:flex;align-items:center;gap:6px;font-size:.8rem"><span style="color:var(--green)">💬</span><span style="color:var(--text2)">${inv.line}</span></div>`:''}
+  </div>
+  <div class="section-title">เลือกประเภทการติดต่อ</div>
+  <div class="contact-options-scroll">${Object.values(CONTACT_TYPES).map(ct=>{
+    const contactInfo=ct.key==='email'?`<div class="co-contact-info"><span class="co-ci-icon">📧</span><span>${inv.email}</span></div>`:ct.key==='multichannel'?`<div class="co-contact-info">${inv.line?`<span class="co-ci-icon">💬</span><span>Line: ${inv.line}</span>`:`<span class="co-ci-icon">🌐</span><span>${inv.email}</span>`}</div>`:`<div class="co-contact-info"><span class="co-ci-icon">📞</span><span>${inv.phone}</span><span style="margin-left:8px" class="co-ci-icon">📧</span><span>${inv.email}</span></div>`;
+    return`<div class="contact-option ${ct.colorClass}" data-type="${ct.key}"><span class="co-icon">${ct.icon}</span><div class="co-info"><div class="co-label">${ct.label}</div><div class="co-sub">${ct.labelEn} · ${ct.caseType}</div>${contactInfo}${ct.desc?`<div class="co-sub" style="font-size:.7rem;font-style:italic;color:var(--text3)">💡 ${ct.desc}</div>`:''}</div><svg class="co-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></div>`}).join('')}</div>
+</div></div></div>`}
+
+function bindCRMSelect(){document.getElementById('mOverlay').addEventListener('click',e=>{if(e.target.id==='mOverlay')closeCRM()});document.getElementById('mClose').addEventListener('click',closeCRM);document.querySelectorAll('.contact-option').forEach(el=>{el.addEventListener('click',()=>{modalState.type=el.dataset.type;modalState.formData={};modalState.callNotes='';modalState.billSent=false;modalState.billData={};if(el.dataset.type==='billing'){modalState.step='sendBill';modalState.billData={amount:modalState.inv.debt||0,dueDate:'',billNote:''}}else{modalState.step='form';startTimer()}renderCRMModal()})})}
+
+function buildBillEmailBody(inv,bd,caseId){
+  const amt=bd.amount||0;const due=bd.dueDate||'ตามที่แจ้ง';
+  return [`เรียน คุณ${inv.name}`,'','เรื่อง: ใบแจ้งหนี้เรียกเก็บค่าใช้จ่าย',`เลขอ้างอิง: ${caseId}`,`วันที่ออก: ${todayStr()}`,'','━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━','📋 รายละเอียดใบแจ้งหนี้:','',`  💰 ยอดเรียกเก็บ: ฿${fmt(amt)}`,`  📅 กำหนดชำระ: ${due}`,bd.billNote?`  📝 หมายเหตุ: ${bd.billNote}`:'','','━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━','','กรุณาชำระเงินภายในกำหนด หากท่านชำระแล้ว','กรุณาแจ้งกลับพร้อมหลักฐานการโอน','','ช่องทางชำระเงิน:','  🏦 ธนาคาร: กสิกรไทย','  🔢 เลขบัญชี: XXX-X-XXXXX-X','  👤 ชื่อบัญชี: บริษัท DEALPAY จำกัด','','หากมีข้อสงสัย กรุณาติดต่อ:','  📞 โทร: 02-XXX-XXXX','  📧 อีเมล: billing@bizops.com','',`อ้างอิงเลขเคส ${caseId} ทุกครั้งที่ติดต่อ`,'','ขอบคุณที่ไว้วางใจ','ฝ่ายเรียกเก็บ — DEALPAY'].filter(l=>l!==false&&l!=='').join('\n');
+}
+
+function renderCRMSendBill(){
+  const{inv,loc,caseId,billData}=modalState;const bd=billData;const emailBody=buildBillEmailBody(inv,bd,caseId);const canSend=bd.amount>0;
+  return`<div class="modal-overlay"><div class="modal modal-sm">
+  <div class="modal-call-header" style="background:linear-gradient(135deg,#c2410c,#fb923c)">
+    <div class="call-info"><span class="ci-icon">💰</span><div><div class="ci-label">ส่งบิลเรียกเก็บ</div><div class="ci-sub">ก่อนโทรทวงหนี้ — ${esc(inv.name)}</div></div></div>
+    <div style="text-align:right"><div style="font-size:.7rem;opacity:.7">Case ID</div><div style="font-size:.85rem;font-weight:700">${caseId}</div></div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center;padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border-l);font-size:.78rem">
+    <div style="display:flex;align-items:center;gap:5px"><span>📧</span><b style="color:var(--text)">${inv.email}</b></div>
+    <div style="width:1px;height:14px;background:var(--border-l)"></div>
+    <div style="display:flex;align-items:center;gap:5px"><span>📞</span><b style="color:var(--text)">${inv.phone}</b></div>
+  </div>
+  ${inv.debt>0?`<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(239,68,68,.06);border-bottom:1px solid rgba(239,68,68,.1)"><span style="font-size:1.1rem">⚠️</span><div><div style="font-size:.82rem;font-weight:700;color:var(--red)">ยอดค้างในระบบ: ฿${fmt(inv.debt)}</div><div style="font-size:.7rem;color:var(--text3)">ข้อมูลจากฐานนักลงทุน</div></div></div>`:''}
+  <div class="modal-form-body" style="max-height:55vh;overflow-y:auto">
+    <div style="font-size:.82rem;font-weight:700;margin-bottom:10px;color:var(--orange)">📝 กรอกข้อมูลบิล</div>
+    <div class="form-group"><label>ยอดเรียกเก็บ (บาท)</label><input class="form-input" type="number" id="billAmt" value="${bd.amount||''}" placeholder="0"></div>
+    <div class="form-group"><label>กำหนดชำระภายใน</label><input class="form-input" type="date" id="billDue" value="${bd.dueDate||''}"></div>
+    <div class="form-group"><label>หมายเหตุในบิล (ถ้ามี)</label><input class="form-input" type="text" id="billNote" value="${esc(bd.billNote||'')}" placeholder="เช่น ค่าบำรุงรักษาเดือน มี.ค."></div>
+    <hr class="form-divider">
+    <div style="font-size:.82rem;font-weight:700;margin-bottom:10px;color:var(--orange)">📧 ตัวอย่างอีเมลบิล</div>
+    <div class="email-preview" style="border-color:rgba(251,146,60,.25)">
+      <div class="email-header" style="background:var(--orange-bg)">
+        <div><span class="eh-label">To:</span> ${inv.email}</div>
+        <div><span class="eh-label">Subject:</span> [DEALPAY] ใบแจ้งหนี้ — ฿${fmt(bd.amount||0)} (Ref: ${caseId})</div>
+      </div>
+      <div class="email-body" id="billPreviewBody">${esc(emailBody)}</div>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
+    <button class="btn btn-ghost" id="billBack">← ย้อนกลับ</button>
+    <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="btn btn-ghost" id="billSkip" style="color:var(--text3)">ข้ามไปโทรเลย →</button>
+      <button class="btn btn-primary" id="billSend" style="background:linear-gradient(135deg,#c2410c,#fb923c);${canSend?'':'opacity:.5;pointer-events:none'}" ${canSend?'':'disabled'}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="m22 2-11 11"/></svg> ส่งบิลทางอีเมล & โทรต่อ
+      </button>
+    </div>
+  </div>
+</div></div>`}
+
+function bindCRMSendBill(){
+  const amtEl=document.getElementById('billAmt');const dueEl=document.getElementById('billDue');const noteEl=document.getElementById('billNote');
+  [amtEl,dueEl,noteEl].forEach(el=>{if(el)el.addEventListener('input',()=>{
+    modalState.billData.amount=parseFloat(amtEl?.value)||0;
+    modalState.billData.dueDate=dueEl?.value||'';
+    modalState.billData.billNote=noteEl?.value||'';
+    const body=buildBillEmailBody(modalState.inv,modalState.billData,modalState.caseId);
+    const pb=document.getElementById('billPreviewBody');if(pb)pb.textContent=body;
+    const sb=document.getElementById('billSend');
+    if(sb){const ok=modalState.billData.amount>0;sb.disabled=!ok;sb.style.opacity=ok?'1':'.5';sb.style.pointerEvents=ok?'auto':'none'}
+  })});
+  document.getElementById('billBack').addEventListener('click',()=>{modalState.step='select';modalState.type=null;renderCRMModal()});
+  document.getElementById('billSkip').addEventListener('click',()=>{modalState.billSent=false;modalState.step='form';modalState.formData.amountDue=modalState.billData.amount;startTimer();renderCRMModal()});
+  document.getElementById('billSend').addEventListener('click',async()=>{
+    const btn=document.getElementById('billSend');
+    btn.disabled=true;btn.innerHTML='<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .8s linear infinite"></span> กำลังส่งบิล...';
+    const inv=modalState.inv;const loc=modalState.loc;const bd=modalState.billData;
+    google.script.run
+      .withSuccessHandler(function(result){
+        console.log('[DEALPAY] ✅ saveBillEntry สำเร็จ',result);
+        modalState.billSent=true;modalState.billInvoiceId=result.invoiceId||'';modalState.formData.amountDue=bd.amount;
+        if(bd.dueDate)modalState.formData.dueDate=bd.dueDate;
+        showToast('✅ ส่งบิลสำเร็จ — Invoice: '+(result.invoiceId||''));
+        modalState.step='form';startTimer();renderCRMModal();
+      })
+      .withFailureHandler(function(err){
+        console.error('[DEALPAY] ❌ saveBillEntry ล้มเหลว',err);
+        btn.disabled=false;btn.innerHTML='🔄 ลองอีกครั้ง';
+        showToast('❌ ส่งบิลไม่สำเร็จ: '+(err.message||err));
+      })
+      .saveBillEntry({locId:loc.id,customerId:inv.customerId,investorName:inv.name,investorEmail:inv.email,amount:bd.amount||0,dueDate:bd.dueDate||'',billNote:bd.billNote||'',caseId:modalState.caseId});
+  });
+}
+
+function renderCRMForm(){const{inv,caseId}=modalState;const cfg=CONTACT_TYPES[modalState.type];const sl=modalState.type==='email'?'กำลังร่างอีเมลถึง':modalState.type==='multichannel'?'กำลังติดต่อกับ':'กำลังสนทนากับ';const al=modalState.type==='email'?'✅ จบการร่างอีเมล & สรุปเคส':modalState.type==='multichannel'?'✅ จบการติดต่อ & สรุปเคส':'✅ จบการสนทนา & สรุปเคส';
+  const billBanner=modalState.billSent?`<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(34,197,94,.08);border-bottom:1px solid rgba(34,197,94,.15);font-size:.78rem"><span style="font-size:1rem">✅</span><div><div style="font-weight:700;color:var(--green)">ส่งบิลเรียกเก็บแล้ว</div><div style="font-size:.7rem;color:var(--text3)">฿${fmt(modalState.billData.amount)} → ${modalState.inv.email}</div></div></div>`:'';
+  return`<div class="modal-overlay"><div class="modal modal-sm">
+  <div class="modal-call-header" style="background:${cfg.headerBg}"><div class="call-info"><span class="ci-icon">${cfg.icon}</span><div><div class="ci-label">${cfg.label}</div><div class="ci-sub">${sl} ${esc(inv.name)}</div></div></div><div class="call-timer"><div class="call-timer-box"><span class="call-timer-dot"></span><span class="call-timer-val" id="timerVal">${modalState.duration}</span></div><div class="call-timer-case">Case: ${caseId}</div></div></div>
+  <div style="display:flex;gap:12px;align-items:center;padding:8px 16px;background:var(--bg3);border-bottom:1px solid var(--border-l);flex-wrap:wrap;font-size:.78rem">
+    <div style="display:flex;align-items:center;gap:5px"><span style="color:var(--accent)">📞</span><b style="color:var(--text)">${inv.phone}</b></div>
+    <div style="width:1px;height:14px;background:var(--border-l)"></div>
+    <div style="display:flex;align-items:center;gap:5px"><span style="color:#38bdf8">📧</span><b style="color:var(--text)">${inv.email}</b></div>
+    ${inv.line?`<div style="width:1px;height:14px;background:var(--border-l)"></div><div style="display:flex;align-items:center;gap:5px"><span style="color:var(--green)">💬</span><span style="color:var(--text2)">${inv.line}</span></div>`:''}
+  </div>
+  ${billBanner}
+  <div class="modal-form-body">
+    ${cfg.fields.map(f=>`<div class="form-group"><label>${f.label}</label>${f.type==='textarea'?`<textarea class="form-input" data-key="${f.key}" placeholder="กรอกข้อมูล...">${esc(modalState.formData[f.key]||'')}</textarea>`:f.type==='text'?`<input class="form-input" type="text" data-key="${f.key}" value="${esc(modalState.formData[f.key]||'')}" placeholder="กรอกข้อมูล...">`:f.type==='number'?`<input class="form-input" type="number" data-key="${f.key}" value="${modalState.formData[f.key]||''}" placeholder="0">`:f.type==='date'?`<input class="form-input" type="date" data-key="${f.key}" value="${modalState.formData[f.key]||''}">`:f.type==='select'?`<div class="chip-group">${f.options.map(o=>`<span class="chip ${modalState.formData[f.key]===o?'selected':''}" data-key="${f.key}" data-val="${esc(o)}">${esc(o)}</span>`).join('')}</div>`:f.type==='rating'?`<div class="rating-group">${[1,2,3,4,5].map(n=>`<button class="rating-btn ${modalState.formData[f.key]===n?'selected':''}" data-key="${f.key}" data-val="${n}">${n}</button>`).join('')}</div>`:''}</div>`).join('')}
+    <hr class="form-divider"><div class="form-group"><label>📝 บันทึกระหว่างสนทนา (Internal)</label><textarea class="form-input notes-area" id="callNotes" placeholder="บันทึกรายละเอียดการสนทนา...">${esc(modalState.callNotes)}</textarea></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-ghost" id="fBack">← ย้อนกลับ</button><button class="btn btn-primary" id="fFinish" style="background:${cfg.headerBg}">${al}</button></div>
+</div></div>`}
+
+function bindCRMForm(){document.querySelectorAll('.form-input[data-key]').forEach(el=>{el.addEventListener('input',()=>{modalState.formData[el.dataset.key]=el.value})});document.querySelectorAll('.chip[data-key]').forEach(el=>{el.addEventListener('click',()=>{modalState.formData[el.dataset.key]=el.dataset.val;renderCRMModal()})});document.querySelectorAll('.rating-btn').forEach(el=>{el.addEventListener('click',()=>{modalState.formData[el.dataset.key]=parseInt(el.dataset.val);renderCRMModal()})});document.getElementById('callNotes')?.addEventListener('input',e=>{modalState.callNotes=e.target.value});document.getElementById('fBack').addEventListener('click',()=>{stopTimer();modalState.step='select';modalState.type=null;renderCRMModal()});document.getElementById('fFinish').addEventListener('click',()=>{stopTimer();modalState.step='summary';renderCRMModal()})}
+
+function buildEmailPreview(){const{inv,caseId,startTime,duration,callNotes,formData,type}=modalState;const cfg=CONTACT_TYPES[type];const ch=type==='email'?'อีเมล':type==='multichannel'?(formData.channel||'ช่องทางอื่น'):'โทรศัพท์';let l=[`เรียน คุณ${inv.name}`,'',`เรื่อง: สรุปการติดต่อ — ${cfg.label}`,`เลขอ้างอิงเคส: ${caseId}`,`วันที่: ${todayStr()}  เวลา: ${startTime}`,`ช่องทาง: ${ch}`,`ระยะเวลา: ${duration}`,'','────────────────────────────','📋 รายละเอียด:'];cfg.fields.forEach(f=>{const v=formData[f.key];if(v)l.push(`  • ${f.label.replace('⭐ ','')}: ${f.type==='rating'?v+'/5':v}`)});if(callNotes)l.push('','📝 หมายเหตุ:','  '+callNotes);l.push('────────────────────────────','',`อ้างอิงเลขเคส ${caseId}`,'','ขอบคุณที่ไว้วางใจ','ทีม DEALPAY Customer Relations');return l.join('\n')}
+
+function renderCRMSummary(){const{inv,loc,caseId,startTime,duration,callNotes,formData,type}=modalState;const cfg=CONTACT_TYPES[type];const tc=cfg.tagColor;const hb=cfg.headerBgLight;const ch=type==='email'?'อีเมล':type==='multichannel'?(formData.channel||'ช่องทางอื่น'):'โทรศัพท์';
+  const failed=isContactFailed(formData);const autoEmail=failed?buildAutoFollowUpEmail(inv,caseId,cfg,formData,startTime):null;
+  const billInfo=modalState.billSent?`<h4 style="margin-top:18px;color:var(--green)">✅ บิลเรียกเก็บที่ส่งแล้ว</h4><div style="background:rgba(34,197,94,.06);border:1.5px solid rgba(34,197,94,.15);border-radius:var(--rs);padding:12px 16px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:.85rem;font-weight:700;color:var(--green)">💰 ใบแจ้งหนี้</div><div style="font-size:.7rem;padding:3px 10px;background:rgba(34,197,94,.12);border-radius:10px;color:var(--green);font-weight:600">ส่งแล้ว ✓</div></div><div style="font-size:.8rem;color:var(--text2)"><div>ยอด: <b style="color:var(--text)">฿${fmt(modalState.billData.amount)}</b></div>${modalState.billData.dueDate?`<div>กำหนดชำระ: <b style="color:var(--text)">${modalState.billData.dueDate}</b></div>`:''}<div>ส่งถึง: <b style="color:var(--text)">${inv.email}</b></div></div></div>`:'';
+  return`<div class="modal-overlay"><div class="modal modal-lg">
+  <div class="summary-header" style="background:${hb}"><div><div class="sh-tag" style="color:${tc}">สรุปเคส</div><div class="sh-title">${cfg.label}</div></div><div class="summary-case-id"><div class="sci-label">Case ID</div><div class="sci-val" style="color:${tc}">${caseId}</div></div></div>
+  <div class="summary-body"><div class="summary-grid">
+    <div class="summary-section"><h4>📋 ข้อมูลเคส</h4><div class="summary-data"><div><span class="sd-label">ลูกค้า:</span> <span class="sd-val">${esc(inv.name)}</span> (${inv.customerId})</div><div><span class="sd-label">โลเคชั่น:</span> <span class="sd-val">${esc(loc.name)}</span></div><div><span class="sd-label">ประเภท:</span> <span class="sd-val">${cfg.caseType}</span></div><div><span class="sd-label">ช่องทาง:</span> <span class="sd-val">${ch}</span></div><div><span class="sd-label">วันที่:</span> <span class="sd-val">${todayStr()}</span> เวลา ${startTime}</div><div><span class="sd-label">ระยะเวลา:</span> <span class="sd-val">${duration}</span></div><div><span class="sd-label">📞 เบอร์โทร:</span> <span class="sd-val">${inv.phone}</span></div><div><span class="sd-label">📧 อีเมล:</span> <span class="sd-val">${inv.email}</span></div>${formData.contactResult?`<div><span class="sd-label">⭐ ผลการติดต่อ:</span> <span class="sd-val" style="color:${failed?'var(--red)':tc}">${esc(formData.contactResult)}</span>${failed?'<span style="margin-left:8px;font-size:.72rem;color:var(--red);font-weight:600">❌ ติดต่อไม่ได้</span>':''}</div>`:''}</div>
+    <h4 style="margin-top:18px">📊 รายละเอียด</h4><div class="summary-data">${cfg.fields.map(f=>{const v=formData[f.key];return v?`<div class="summary-field"><span class="sd-label">${f.label.replace('⭐ ','')}</span><span class="sd-val">${f.type==='rating'?v+'/5':esc(String(v))}</span></div>`:''}).join('')}${callNotes?`<div class="summary-notes"><span style="font-weight:700;color:var(--yellow)">📝 หมายเหตุ: </span>${esc(callNotes)}</div>`:''}</div></div>
+    <div class="summary-section">
+      ${billInfo}
+      <h4>📧 อีเมลสรุปการติดต่อ</h4><div class="email-preview"><div class="email-header"><div><span class="eh-label">To:</span> ${inv.email}</div><div><span class="eh-label">Subject:</span> [DEALPAY] ${cfg.label} (Ref: ${caseId})</div></div><div class="email-body">${esc(buildEmailPreview())}</div></div>
+      ${failed?`<h4 style="margin-top:18px;color:var(--red)">🔔 อีเมลแจ้งอัตโนมัติ (ติดต่อไม่ได้)</h4><div style="background:var(--red-bg);border:1.5px solid rgba(239,68,68,.25);border-radius:var(--rs);padding:12px 16px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.2rem">⚠️</span><div><div style="font-size:.85rem;font-weight:700;color:var(--red)">ระบบจะส่งอีเมลแจ้งนักลงทุนอัตโนมัติ</div><div style="font-size:.72rem;color:var(--text3)">เนื่องจากผลการติดต่อ: "${esc(formData.contactResult)}" — ระบบจะส่งอีเมลแจ้งให้นักลงทุนติดต่อกลับ</div></div></div></div><div class="email-preview" style="border-color:rgba(239,68,68,.3)"><div class="email-header" style="background:var(--red-bg)"><div><span class="eh-label">To:</span> ${inv.email}</div><div><span class="eh-label">Subject:</span> ${esc(autoEmail.subject)}</div><div style="font-size:.7rem;color:var(--red);margin-top:4px">📤 Auto-Send — ส่งอัตโนมัติเมื่อกดบันทึก</div></div><div class="email-body">${esc(autoEmail.body)}</div></div>`:''}
+    </div>
+  </div></div>
+  <div class="modal-footer"><button class="btn btn-ghost" id="sBack">← แก้ไข</button><button class="btn btn-primary" id="sSend" style="background:linear-gradient(135deg,var(--green),#15803d)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="m22 2-11 11"/></svg> บันทึก & ส่งอีเมล${(()=>{let n=1;if(failed)n++;return n>1?` (${n} ฉบับ)`:''})()}</button></div>
+</div></div>`}
+
+function bindCRMSummary(){document.getElementById('sBack').addEventListener('click',()=>{modalState.step='form';startTimer();renderCRMModal()});document.getElementById('sSend').addEventListener('click',async()=>{const btn=document.getElementById('sSend');btn.disabled=true;btn.innerHTML='<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .8s linear infinite"></span> กำลังบันทึก...';
+    const inv=modalState.inv;const loc=modalState.loc;const cfg=CONTACT_TYPES[modalState.type];const fd=modalState.formData;const failed=isContactFailed(fd);
+    google.script.run
+      .withSuccessHandler(function(result){
+        console.log('[DEALPAY] ✅ saveCRMEntry สำเร็จ',result);
+        if(!state.recentCases[inv.customerId])state.recentCases[inv.customerId]=[];
+        state.recentCases[inv.customerId].unshift({caseId:result.caseId||modalState.caseId,label:cfg.label,date:todayStr()});
+        modalState.caseId=result.caseId||modalState.caseId;
+        modalState.emailLogged=result.emailLogged===true;
+        modalState.step='done';renderCRMModal();
+      })
+      .withFailureHandler(function(err){
+        console.error('[DEALPAY] ❌ saveCRMEntry ล้มเหลว',err);
+        btn.disabled=false;btn.innerHTML='🔄 ลองอีกครั้ง';
+        showToast('❌ บันทึกไม่สำเร็จ: '+(err.message||err));
+      })
+      .saveCRMEntry({locId:loc.id,locName:loc.name,customerId:inv.customerId,investorName:inv.name,investorEmail:inv.email,contactType:modalState.type,contactLabel:cfg.label,caseType:cfg.caseType,subType:cfg.subType,callNotes:modalState.callNotes,duration:modalState.duration,contactResult:fd.contactResult||'',contactFailed:failed,agent:'คุณ (ผู้ใช้ปัจจุบัน)',formChannel:fd.channel||'',overallScore:fd.overallScore||null,serviceQuality:fd.serviceQuality||'',machineCondition:fd.machineCondition||'',feedback:fd.feedback||'',followUp:fd.followUp||'',amountDue:fd.amountDue||0,dueDate:fd.dueDate||'',formDataJson:JSON.stringify(fd)});
+  })}
+
+function renderCRMDone(){const{inv,caseId,duration,type,formData}=modalState;const cfg=CONTACT_TYPES[type];const failed=isContactFailed(formData);const hasBill=modalState.billSent;const emailOk=modalState.emailLogged===true;return`<div class="modal-overlay"><div class="modal modal-sm"><div class="done-wrap">
+  <div class="done-check">${emailOk?'<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>':'<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'}</div>
+  <div class="done-title" style="${emailOk?'':' color:var(--red)'}">${emailOk?'บันทึกเคสเรียบร้อย!':'ส่งอีเมล์ไม่สำเร็จ'}</div><div class="done-sub">${emailOk?`ส่งอีเมลสรุปไปยัง <b>${inv.email}</b> แล้ว`:`<span style="color:var(--red)">⚠️ บันทึกข้อมูลแล้ว แต่ระบบส่งอีเมลไม่สำเร็จ</span>`}</div>
+  <div class="done-summary"><div class="ds-item"><div class="ds-label">Case ID</div><div class="ds-val" style="color:${cfg.tagColor}">${caseId}</div></div><div class="ds-divider"></div><div class="ds-item"><div class="ds-label">ประเภท</div><div class="ds-val">${cfg.label}</div></div><div class="ds-divider"></div><div class="ds-item"><div class="ds-label">ระยะเวลา</div><div class="ds-val" style="font-family:var(--mono)">${duration}</div></div></div>
+  ${hasBill?`<div style="background:rgba(34,197,94,.06);border:1.5px solid rgba(34,197,94,.15);border-radius:var(--rs);padding:14px 18px;margin:16px 0;text-align:left;width:100%;max-width:420px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.1rem">💰</span><div style="font-size:.85rem;font-weight:700;color:var(--green)">ส่งบิลเรียกเก็บแล้ว</div></div><div class="email-sent-item"><span class="esi-icon" style="color:var(--green)">✅</span><span class="esi-name">ใบแจ้งหนี้ ฿${fmt(modalState.billData.amount)}</span><span class="esi-email">${inv.email}</span></div><div class="email-sent-item"><span class="esi-icon" style="color:var(--green)">✅</span><span class="esi-name">อีเมลสรุปเคสทวงหนี้</span><span class="esi-email">${inv.email}</span></div></div>`:''}
+  ${failed?`<div style="background:var(--red-bg);border:1.5px solid rgba(239,68,68,.2);border-radius:var(--rs);padding:14px 18px;margin:16px 0;text-align:left;width:100%;max-width:420px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.1rem">⚠️</span><div style="font-size:.85rem;font-weight:700;color:var(--red)">ส่งอีเมลแจ้งอัตโนมัติแล้ว</div></div><div style="font-size:.78rem;color:var(--text2);margin-bottom:6px">เนื่องจากผลการติดต่อ: <b style="color:var(--red)">${esc(formData.contactResult)}</b></div><div class="email-sent-item"><span class="esi-icon" style="color:var(--green)">✅</span><span class="esi-name">อีเมลสรุปเคส</span><span class="esi-email">${inv.email}</span></div><div class="email-sent-item"><span class="esi-icon" style="color:var(--red)">📧</span><span class="esi-name">อีเมลแจ้งติดต่อไม่ได้</span><span class="esi-email">${inv.email}</span></div><div style="font-size:.7rem;color:var(--text3);margin-top:8px">แจ้งให้นักลงทุนติดต่อกลับ พร้อมเลขอ้างอิง ${caseId}</div></div>`:''}
+  <div class="done-actions"><button class="btn btn-ghost" id="dClose">ปิด</button><button class="btn btn-primary" id="dNew" style="background:var(--accent)">+ ลงเคสใหม่</button></div>
+</div></div></div>`}
+
+function bindCRMDone(){document.getElementById('dClose').addEventListener('click',()=>{closeCRM();render()});document.getElementById('dNew').addEventListener('click',()=>{modalState.step='select';modalState.type=null;modalState.formData={};modalState.callNotes='';modalState.caseId=genCaseId();renderCRMModal()})}
+
+// ═══════ INIT — โหลดข้อมูลจาก Sheet แล้วแสดง Dashboard ═══════
+function loadDataFromSheets(){
+  app.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:80vh;flex-direction:column;gap:16px">
+    <div style="width:48px;height:48px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite"></div>
+    <div style="color:var(--text2);font-size:.95rem" id="loadMsg">กำลังโหลดข้อมูลจาก Google Sheets...</div>
+    <div style="color:var(--text3);font-size:.78rem" id="loadSub">ข้อมูลทั้งหมดดึงจาก Sheet ล่าสุด</div>
+  </div>`;
+  console.log('[DEALPAY] เริ่มโหลดข้อมูล...');
+  var loadTimer=setTimeout(function(){
+    console.error('[DEALPAY] TIMEOUT — getAllData() ไม่ตอบกลับภายใน 20 วินาที');
+    var lm=document.getElementById('loadMsg');var ls=document.getElementById('loadSub');
+    if(lm){lm.textContent='⏱️ โหลดนานเกินไป...';}
+    if(ls){ls.innerHTML='<span style="color:var(--orange)">อาจต้องรัน <b>setupSheets()</b> ก่อน หรือ Re-deploy Web App ใหม่</span><br><br><button onclick="loadDataFromSheets()" style="padding:8px 24px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem">🔄 ลองใหม่</button> <button onclick="testConnection()" style="padding:8px 24px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;margin-left:8px">🔧 ทดสอบการเชื่อมต่อ</button>';}
+  },20000);
+  google.script.run
+    .withSuccessHandler(function(result){
+      clearTimeout(loadTimer);
+      console.log('[DEALPAY] ✅ โหลดสำเร็จ',result);
+      if(!result||typeof result!=='object'){
+        app.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:80vh;flex-direction:column;gap:16px"><div style="font-size:2rem">⚠️</div><div style="color:var(--orange);font-size:.95rem;font-weight:600">ข้อมูลว่างเปล่า</div><div style="color:var(--text3);font-size:.82rem">getAllData() ส่งค่ากลับมาว่าง — ตรวจสอบว่ารัน <b>setupSheets()</b> แล้ว</div><button onclick="loadDataFromSheets()" style="margin-top:12px;padding:8px 24px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem">ลองใหม่</button></div>`;
+        return;
+      }
+      LOCATIONS=result.locations||[];
+      coordCases=result.coordCases||[];
+      SATISFACTION_DATA=(result.surveys||[]).map(function(s){
+        var d=s.date?new Date(s.date):new Date();
+        s.week=getWeekNum(d);
+        return s;
+      });
+      ALL_CABINET_TYPES=[...new Set(LOCATIONS.flatMap(l=>l.projects.map(p=>p.cabinetType)))].sort();
+      rebuildSearchIndex();
+      DATA_LOADED=true;
+      console.log('[DEALPAY] Locations:',LOCATIONS.length,'CoordCases:',coordCases.length,'Surveys:',SATISFACTION_DATA.length);
+      render();
+    })
+    .withFailureHandler(function(err){
+      clearTimeout(loadTimer);
+      console.error('[DEALPAY] ❌ โหลดล้มเหลว',err);
+      app.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:80vh;flex-direction:column;gap:16px"><div style="font-size:2rem">⚠️</div><div style="color:var(--red);font-size:.95rem;font-weight:600">ไม่สามารถโหลดข้อมูลได้</div><div style="color:var(--text3);font-size:.82rem;max-width:500px;text-align:center">${err.message||err}</div><div style="color:var(--text3);font-size:.78rem;margin-top:8px;max-width:500px;text-align:center;line-height:1.8"><b>วิธีแก้:</b><br>1️⃣ เปิด Apps Script Editor → รัน <b>setupSheets()</b> ก่อน<br>2️⃣ Grant permission (ให้สิทธิ์เข้าถึง Sheets)<br>3️⃣ Deploy → New Deployment → Web App → ใช้ลิงก์ใหม่</div><div style="display:flex;gap:8px;margin-top:8px"><button onclick="loadDataFromSheets()" style="padding:8px 24px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem">🔄 ลองใหม่</button><button onclick="testConnection()" style="padding:8px 24px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem">🔧 ทดสอบ</button></div></div>`;
+    })
+    .getAllData();
+}
+
+function testConnection(){
+  app.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:80vh;flex-direction:column;gap:16px"><div style="width:48px;height:48px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite"></div><div style="color:var(--orange);font-size:.95rem">🔧 ทดสอบการเชื่อมต่อ...</div></div>`;
+  google.script.run
+    .withSuccessHandler(function(r){
+      alert('✅ เชื่อมต่อสำเร็จ!\n\n'+r+'\n\nกด OK แล้วจะโหลดข้อมูลใหม่');
+      loadDataFromSheets();
+    })
+    .withFailureHandler(function(err){
+      alert('❌ เชื่อมต่อไม่ได้\n\nError: '+(err.message||err)+'\n\nต้องรัน setupSheets() และ Grant Permission ก่อน');
+      loadDataFromSheets();
+    })
+    .ping();
+}
+
+loadDataFromSheets();
+</script>
